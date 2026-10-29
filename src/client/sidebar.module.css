@@ -768,6 +768,15 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   padding: 4px 8px 8px;
 }
 
+/* Grow-with-content variant (`scroll={false}`): the surrounding container owns
+   the only vertical scrollbar, so the rail and the tree do not show two
+   side-by-side scrollbars. */
+.explorerBodyGrow {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+}
+
 /* VSCode-style tree chrome: one chevron column before a directory's folder
    glyph (a same-width spacer keeps file names aligned), plus faint vertical
    guides at every ancestor indentation level. The guides are absolutely

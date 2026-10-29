@@ -172,6 +172,9 @@ export function FilesSection(props: FilesSectionProps): ReactNode {
                 visible={visible}
                 exclude={[]}
                 service={service}
+                // The rail is the single scroller; a tree-owned scrollbar next
+                // to it would read as doubled chrome.
+                scroll={false}
               />
             )}
       </div>

@@ -25,7 +25,32 @@
   overflow-x: hidden;
   overflow-y: auto;
   background: var(--dsw-specific-sidebar-fill);
-  border-right: 1px solid var(--dsw-alias-border-l1);
+  /* The SPLITTER owns the boundary line. A border here would stack up with the
+     rail's scrollbar and the splitter's own line into three adjacent bars. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--dsw-alias-border-l2) transparent;
+}
+
+.left::-webkit-scrollbar {
+  width: 10px;
+}
+
+.left::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.left::-webkit-scrollbar-thumb {
+  background: var(--dsw-alias-border-l2);
+  border-radius: 5px;
+  /* Inset the thumb inside its own track: the scrollbar keeps its distance
+     from the boundary instead of hugging it. */
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+.left::-webkit-scrollbar-thumb:hover {
+  background: var(--dsw-alias-label-secondary);
+  background-clip: padding-box;
 }
 
 /* ── One collapsible root ─────────────────────────────────────────────── */
@@ -204,12 +229,10 @@
 }
 
 .treeHost {
-  /* FileTree's body is `flex: 1` — it needs a bounded flex column to scroll. */
-  display: flex;
-  flex-direction: column;
-  height: 40vh;
-  min-height: 200px;
-  max-height: 520px;
+  /* The tree grows with its rows and the rail owns the only scrollbar; a
+     bounded box here would produce a second, adjacent scrollbar. */
+  display: block;
+  min-height: 0;
   min-width: 0;
 }
 
@@ -226,8 +249,8 @@
   flex-direction: column;
   gap: 1px;
   padding: 2px 6px 0;
-  max-height: 240px;
-  overflow-y: auto;
+  /* No inner scroller: the rail owns it (see `.treeHost`). */
+  overflow: visible;
 }
 
 .noteRow {
@@ -591,18 +614,37 @@
 }
 
 .splitter {
+  position: relative;
   flex: 0 0 auto;
-  width: 5px;
+  /* A 10px hit area around a single hairline: the line sits in the middle so
+     the rail's scrollbar and the content never appear fused with it. */
+  width: 10px;
   cursor: col-resize;
   touch-action: none;
   background: transparent;
-  border-left: 1px solid transparent;
-  border-right: 1px solid transparent;
-  transition: background 120ms ease;
+}
+
+.splitter::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--dsw-alias-border-l1);
+  transition: background 120ms ease, width 120ms ease;
+}
+
+/* The active state stays a LINE (2px) plus a faint wash over the hit area —
+   never a solid 5px block that reads as a third scrollbar. */
+.splitter:hover::before,
+.splitterActive::before {
+  width: 2px;
+  background: var(--dsw-alias-brand-primary);
 }
 
 .splitter:hover,
 .splitterActive {
-  background: var(--dsw-alias-brand-primary);
-  opacity: 0.35;
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent);
 }

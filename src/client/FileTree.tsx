@@ -564,6 +564,13 @@ export function FileTree(props: {
    */
   visible?: boolean
   /**
+   * Whether the tree scrolls ITSELF (default) or grows with its rows and lets
+   * the surrounding container own the only scrollbar. The workbench passes
+   * `false`: nesting two vertical scrollbars side by side (rail + tree) reads
+   * as doubled chrome and is easy to mis-click.
+   */
+  scroll?: boolean
+  /**
    * Keep the plugin's own open-with targets in the "打开方式" submenu even when
    * the host reports local applications for the path. Default (false): the
    * host's own list wins, and the plugin's fixed targets (file manager /
@@ -2199,7 +2206,11 @@ export function FileTree(props: {
   return (
     <div
       ref={bodyRef}
-      className={clsx(css.explorerBody, hidden === true && css.explorerHiddenPane)}
+      className={clsx(
+        css.explorerBody,
+        props.scroll === false && css.explorerBodyGrow,
+        hidden === true && css.explorerHiddenPane,
+      )}
       hidden={hidden}
       onDragEnter={handleBodyDragEnter}
       onDragOver={handleBodyDragOver}
