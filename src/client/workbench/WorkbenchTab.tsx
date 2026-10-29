@@ -45,6 +45,12 @@ function clampLeft(width: number, total: number): number {
 
 const ICON_SIZE = 14
 
+/** The directory part of an absolute path in either separator dialect. */
+function parentDir(path: string): string {
+  const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return cut > 0 ? path.slice(0, cut) : path
+}
+
 export function WorkbenchTab(props: TabComponentProps): ReactNode {
   const { ctx, store, scope, visible } = props
   const cwd = useSessionRoot(ctx, scope.sessionId, { visible })
@@ -60,6 +66,26 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
   const rootRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
   const [dragging, setDragging] = useState(false)
+  /** Directory the rail's "+ 文件 / + 文件夹" buttons create into. Follows the
+   *  last directory the reader opened or expanded; `undefined` = workspace root. */
+  const [createDir, setCreateDir] = useState<string | undefined>(undefined)
+
+  // Keep the rail inside the panel: a width dragged on a wider window must not
+  // squeeze the content area to zero when the panel comes back narrower.
+  useEffect(() => {
+    const element = rootRef.current
+    if (element === null) return
+    const observer = new ResizeObserver(() => {
+      const width = element.getBoundingClientRect().width
+      if (width <= 0) return
+      setUi(current => {
+        const next = clampLeft(current.leftWidth, width)
+        return next === current.leftWidth ? current : { ...current, leftWidth: next }
+      })
+    })
+    observer.observe(element)
+    return () => { observer.disconnect() }
+  }, [])
 
   const isOpen = useCallback((id: SectionId): boolean => ui.collapsed[id] !== true, [ui.collapsed])
 
@@ -71,15 +97,20 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
   }, [])
 
   const toggleDir = useCallback((path: string) => {
-    setUi(current => ({
-      ...current,
-      expanded: current.expanded.includes(path)
-        ? current.expanded.filter(item => item !== path)
-        : [...current.expanded, path],
-    }))
+    setUi(current => {
+      const open = current.expanded.includes(path)
+      if (!open) setCreateDir(path)
+      return {
+        ...current,
+        expanded: open
+          ? current.expanded.filter(item => item !== path)
+          : [...current.expanded, path],
+      }
+    })
   }, [])
 
   const openFile = useCallback((path: string) => {
+    setCreateDir(parentDir(path))
     setUi(current => ({ ...current, openPath: path }))
   }, [])
 
@@ -160,6 +191,8 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
             scope={scope}
             visible={visible && filesOpen}
             cwd={root}
+            targetDir={createDir}
+            onResetTarget={() => { setCreateDir(undefined) }}
             expanded={ui.expanded}
             onToggleDir={toggleDir}
             onOpenFile={openFile}

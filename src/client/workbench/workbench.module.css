@@ -149,6 +149,46 @@
   padding: 2px 8px 0;
 }
 
+/* "新建到：<dir>" — the create buttons must say WHERE they write, because the
+ * target follows the last opened/expanded directory rather than always root. */
+.targetRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.targetLabel {
+  flex: 0 0 auto;
+}
+
+.targetPath {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-primary);
+}
+
+.linkButton {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-brand-primary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.linkButton:hover {
+  text-decoration: underline;
+}
+
 .createInput {
   width: 100%;
   box-sizing: border-box;

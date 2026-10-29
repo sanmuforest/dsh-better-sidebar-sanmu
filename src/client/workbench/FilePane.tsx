@@ -6,7 +6,7 @@
  * `fs.read`, the file header, the close action and the error/notice states —
  * so the editor lands as a body replacement, not a rewrite.
  */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Context } from '../../context-types.ts'
 import { api, type FsReadResult } from '../api.ts'
 import type { TabComponentProps } from '../service.ts'
@@ -30,21 +30,32 @@ type Load =
   | { status: 'ready'; result: FsReadResult }
 
 export function FilePane(props: FilePaneProps): ReactNode {
-  const { scope, visible, path, onClose } = props
+  const { scope, path, onClose } = props
   const [load, setLoad] = useState<Load>({ status: 'loading' })
+  const [attempt, setAttempt] = useState(0)
+  // The service call needs the live scope, but the effect must not restart
+  // because the host handed a fresh (structurally equal) scope object on a
+  // re-render: depending on the object identity alone can loop forever and
+  // leave the pane on "读取中…".
+  const scopeRef = useRef(scope)
+  scopeRef.current = scope
 
+  // Load on mount and whenever the path changes — deliberately NOT gated on
+  // `visible`: the host keeps every visited tab body mounted, and a body it
+  // currently reports as parked must still show the file the reader clicked.
+  // (The file tree loads the same way; gating here was what left the pane
+  // stuck on "读取中…".)
   useEffect(() => {
-    if (!visible) return
     const controller = new AbortController()
     setLoad({ status: 'loading' })
-    void api.fsRead(scope, path, controller.signal)
+    void api.fsRead(scopeRef.current, path, controller.signal)
       .then(result => { setLoad({ status: 'ready', result }) })
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return
         setLoad({ status: 'error', message: cause instanceof Error ? cause.message : String(cause) })
       })
     return () => { controller.abort() }
-  }, [path, scope, visible])
+  }, [path, scope.sessionId, scope.cwd, attempt])
 
   return (
     <div className={css.filePane}>
@@ -54,7 +65,15 @@ export function FilePane(props: FilePaneProps): ReactNode {
       </div>
       <div className={css.fileBody}>
         {load.status === 'loading' ? <div className={css.empty}>读取中…</div> : null}
-        {load.status === 'error' ? <div className={css.error}>{load.message}</div> : null}
+        {load.status === 'error' ? (
+          <div className={css.error}>
+            无法读取 {path}
+            <br />
+            {load.message}
+            <br />
+            <button type="button" className={css.toolButton} onClick={() => { setAttempt(n => n + 1) }}>重新读取</button>
+          </div>
+        ) : null}
         {load.status === 'ready' && load.result.kind === 'binary'
           ? <div className={css.empty}>二进制文件（{formatBytes(load.result.size)}），暂不支持在预览中打开。</div>
           : null}
@@ -62,14 +81,16 @@ export function FilePane(props: FilePaneProps): ReactNode {
           ? <div className={css.empty}>文件过大（{formatBytes(load.result.size)}），已在右侧折叠；编辑能力将在后续阶段接入。</div>
           : null}
         {load.status === 'ready' && load.result.kind === 'text' ? (
-          load.result.content.length > PREVIEW_LIMIT
-            ? (
-                <>
-                  <div className={css.fileNotice}>文件较大，预览截断到前 {formatBytes(PREVIEW_LIMIT)}。</div>
-                  <pre className={css.fileText}>{load.result.content.slice(0, PREVIEW_LIMIT)}</pre>
-                </>
-              )
-            : <pre className={css.fileText}>{load.result.content}</pre>
+          load.result.content.length === 0
+            ? <div className={css.empty}>空文件（0 B）—— 编辑与保存将在阶段三接入。</div>
+            : load.result.content.length > PREVIEW_LIMIT
+              ? (
+                  <>
+                    <div className={css.fileNotice}>文件较大，预览截断到前 {formatBytes(PREVIEW_LIMIT)}。</div>
+                    <pre className={css.fileText}>{load.result.content.slice(0, PREVIEW_LIMIT)}</pre>
+                  </>
+                )
+              : <pre className={css.fileText}>{load.result.content}</pre>
         ) : null}
       </div>
     </div>

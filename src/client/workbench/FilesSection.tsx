@@ -24,6 +24,10 @@ export interface FilesSectionProps {
   scope: TabComponentProps['scope']
   visible: boolean
   cwd: string | undefined
+  /** Directory the create buttons write into (undefined = the workspace root). */
+  targetDir: string | undefined
+  /** Forget the target directory and create at the workspace root again. */
+  onResetTarget: () => void
   expanded: string[]
   onToggleDir: (path: string) => void
   onOpenFile: (path: string) => void
@@ -35,23 +39,28 @@ export interface FilesSectionProps {
 }
 
 export function FilesSection(props: FilesSectionProps): ReactNode {
-  const { ctx, scope, visible, cwd, expanded, onToggleDir, onOpenFile, onReferenceFile, refreshTick, onMutated } = props
+  const {
+    ctx, scope, visible, cwd, targetDir, onResetTarget,
+    expanded, onToggleDir, onOpenFile, onReferenceFile, refreshTick, onMutated,
+  } = props
   const [creating, setCreating] = useState<'file' | 'dir' | null>(null)
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const service = ctx.get('betterSidebar') as BetterSidebarService | undefined
+  /** Where the create buttons land: the followed directory, else the root. */
+  const createIn = targetDir ?? cwd
 
   const commit = useCallback(async () => {
-    if (creating === null || cwd === undefined) return
+    if (creating === null || createIn === undefined) return
     const trimmed = name.trim()
     if (trimmed === '') return
     setBusy(true)
     setError(null)
     try {
       const result = creating === 'dir'
-        ? await api.fsMkdir(scope, cwd, trimmed)
-        : await api.fsCreateFile(scope, cwd, trimmed)
+        ? await api.fsMkdir(scope, createIn, trimmed)
+        : await api.fsCreateFile(scope, createIn, trimmed)
       setCreating(null)
       setName('')
       onMutated()
@@ -62,7 +71,7 @@ export function FilesSection(props: FilesSectionProps): ReactNode {
     } finally {
       setBusy(false)
     }
-  }, [creating, cwd, name, onMutated, onOpenFile, scope])
+  }, [creating, createIn, name, onMutated, onOpenFile, scope])
 
   const onUploadRequest = useCallback((dir: string, items: UploadItem[]) => {
     void (async () => {
@@ -100,6 +109,13 @@ export function FilesSection(props: FilesSectionProps): ReactNode {
           <button type="button" className={css.toolButton} onClick={() => { setCreating(null); setName('') }}>
             取消
           </button>
+        ) : null}
+      </div>
+      <div className={css.targetRow} title={createIn ?? ''}>
+        <span className={css.targetLabel}>新建到：</span>
+        <span className={css.targetPath}>{targetName(createIn, cwd)}</span>
+        {targetDir !== undefined && targetDir !== cwd ? (
+          <button type="button" className={css.linkButton} onClick={onResetTarget}>回到根目录</button>
         ) : null}
       </div>
       {creating !== null ? (
@@ -142,4 +158,16 @@ export function FilesSection(props: FilesSectionProps): ReactNode {
       </div>
     </div>
   )
+}
+
+/** Human label for the create target: root, a relative sub-path, or the raw path. */
+function targetName(dir: string | undefined, root: string | undefined): string {
+  if (dir === undefined) return '（工作区未就绪）'
+  if (root === undefined || dir === root) return '工作区根目录'
+  const base = root.replace(/[\\/]+$/, '')
+  if (dir.startsWith(base)) {
+    const relative = dir.slice(base.length).replace(/^[\\/]+/, '')
+    if (relative !== '') return relative.replace(/\\/g, '/')
+  }
+  return dir
 }
