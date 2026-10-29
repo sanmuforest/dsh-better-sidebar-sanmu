@@ -676,10 +676,12 @@ export function NativeTabTitle(props: NativeTitleInjected & NativeBodyFrameworkP
   }
   return (
     <>
+      {/* An in-strip launcher sits at the chip's LEFT edge, so an opening tab
+          or a growing title can never push it out of reach. */}
+      {props.stripAction === undefined ? null : props.stripAction}
       {/* Decorative: the chip's accessible name stays the title. */}
       <span className={css.chipIcon} aria-hidden="true">{glyph}</span>
       {title}
-      {props.stripAction === undefined ? null : props.stripAction}
       {unread ? <UnreadDot /> : null}
     </>
   )
