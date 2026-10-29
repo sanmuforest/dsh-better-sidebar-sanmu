@@ -326,6 +326,7 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
             visible={visible && inspirationOpen}
             cwd={root}
             onOpenFile={requestOpen}
+            onReferenceFile={referenceFile}
             refreshTick={refreshTick}
           />
         </Section>

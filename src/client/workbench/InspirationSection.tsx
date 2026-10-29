@@ -1,18 +1,21 @@
 /**
- * "Inspiration" root: Markdown files in `<workspace>/.dsh-whiteboard/`.
+ * "Inspiration" root: the `<workspace>/.dsh-whiteboard/` folder, shown with the
+ * SAME tree the Files root uses.
  *
- * The directory IS the product decision: notes are plain `.md` files inside the
- * workspace, so the agent's own tools (read/write/edit, grep, `@` references)
- * can consume them with no plugin API. The panel is a thin list over the same
- * `fs.*` routes the file tree uses — creating an empty `.md` and opening it in
- * the right column is the whole feature. A mind-map plugin, when installed,
- * keeps working because these are ordinary Markdown files it can read.
+ * The directory is the product decision: notes are ordinary `.md` files inside
+ * the workspace, so the agent's own tools (read/write/edit, grep, `@` refs) can
+ * consume them with no plugin API. Rendering the upstream `FileTree` here (not
+ * a bespoke list) is what gives this root the full row menu — open with, reveal
+ * in the OS file manager, copy path, rename, delete, upload, new file/folder,
+ * "reference in chat" — with zero duplicated menu code.
  */
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Context } from '../../context-types.ts'
 import { api } from '../api.ts'
-import { joinChild } from '../FileTree.tsx'
-import type { TabComponentProps } from '../service.ts'
+import { FileTree, joinChild } from '../FileTree.tsx'
+import { createOpenInApp } from '../open-in-app.ts'
+import type { BetterSidebarService, TabComponentProps } from '../service.ts'
+import type { UploadItem } from '../upload.ts'
 import css from './workbench.module.css'
 
 /** The fixed directory, relative to the session workspace root. */
@@ -24,64 +27,81 @@ export interface InspirationSectionProps {
   visible: boolean
   cwd: string | undefined
   onOpenFile: (path: string) => void
-  /** Bumped when the caller wants this list re-read. */
+  onReferenceFile: (path: string, isDir: boolean) => void
+  /** Bumped by the caller when the workspace moves. */
   refreshTick: number
 }
 
-interface NoteRow {
-  name: string
-  path: string
-}
-
-function noteName(seq: number): string {
+function noteName(): string {
   const now = new Date()
   const pad = (n: number): string => String(n).padStart(2, '0')
   const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`
-  return `灵感-${stamp}${seq > 0 ? `-${seq}` : ''}.md`
+  return `灵感-${stamp}.md`
 }
 
 export function InspirationSection(props: InspirationSectionProps): ReactNode {
-  const { scope, visible, cwd, onOpenFile, refreshTick } = props
-  const [rows, setRows] = useState<NoteRow[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ctx, scope, visible, cwd, onOpenFile, onReferenceFile, refreshTick } = props
+  const dir = cwd === undefined ? undefined : joinChild(cwd, INSPIRATION_DIR_NAME)
+  const [expanded, setExpanded] = useState<string[]>([])
+  const [localTick, setLocalTick] = useState(0)
   const [creating, setCreating] = useState(false)
   const [draftName, setDraftName] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [rootEmpty, setRootEmpty] = useState(false)
+  const service = ctx.get('betterSidebar') as BetterSidebarService | undefined
+  const openInApp = useMemo(() => createOpenInApp(ctx), [ctx])
 
-  const dir = cwd === undefined ? undefined : joinChild(cwd, INSPIRATION_DIR_NAME)
-
-  const reload = useCallback(async (signal?: AbortSignal) => {
-    if (dir === undefined) return
-    setLoading(true)
-    setError(null)
-    try {
-      const listing = await api.fsTree(scope, dir, [], signal)
-      const notes = listing.entries
-        .filter(entry => !entry.isDir && entry.name.toLowerCase().endsWith('.md'))
-        .map(entry => ({ name: entry.name, path: entry.path }))
-        .sort((a, b) => b.name.localeCompare(a.name, 'zh'))
-      setRows(notes)
-    } catch (cause) {
-      // A missing directory is the normal empty state, not an error.
-      const message = cause instanceof Error ? cause.message : String(cause)
-      setRows([])
-      if (!/ENOENT|not found|不存在/i.test(message)) setError(message)
-    } finally {
-      setLoading(false)
-    }
-  }, [dir, scope])
-
+  // The folder must exist before the tree lists it: create-on-demand, then ask
+  // whether it has rows so the empty state can explain what this root is for.
   useEffect(() => {
-    if (!visible) return
+    if (dir === undefined || cwd === undefined || !visible) return
     const controller = new AbortController()
-    void reload(controller.signal)
+    void (async () => {
+      try {
+        await api.fsMkdir(scope, cwd, INSPIRATION_DIR_NAME)
+      } catch {
+        // Already there — the only expected failure.
+      }
+      try {
+        const listing = await api.fsTree(scope, dir, [], controller.signal)
+        setRootEmpty(listing.entries.length === 0)
+      } catch {
+        if (!controller.signal.aborted) setRootEmpty(true)
+      }
+    })()
     return () => { controller.abort() }
-  }, [reload, visible, refreshTick])
+  }, [cwd, dir, scope, visible, refreshTick, localTick])
+
+  const toggleDir = useCallback((path: string) => {
+    setExpanded(current => current.includes(path)
+      ? current.filter(item => item !== path)
+      : [...current, path])
+  }, [])
+
+  const onUploadRequest = useCallback((uploadDir: string, items: UploadItem[]) => {
+    void (async () => {
+      setBusy(true)
+      setError(null)
+      try {
+        for (const item of items) {
+          await api.uploadFile(scope, uploadDir, item.relativePath, item.file)
+        }
+        setLocalTick(tick => tick + 1)
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause))
+      } finally {
+        setBusy(false)
+      }
+    })()
+  }, [scope])
 
   const create = useCallback(async (rawName: string) => {
     if (cwd === undefined || dir === undefined) return
-    const name = rawName.trim() === '' ? noteName(rows.length) : rawName.trim()
-    const fileName = name.toLowerCase().endsWith('.md') ? name : `${name}.md`
+    const trimmed = rawName.trim()
+    const fileName = trimmed === ''
+      ? noteName()
+      : (trimmed.toLowerCase().endsWith('.md') ? trimmed : `${trimmed}.md`)
     setCreating(false)
     setDraftName('')
     setError(null)
@@ -89,15 +109,15 @@ export function InspirationSection(props: InspirationSectionProps): ReactNode {
       try {
         await api.fsMkdir(scope, cwd, INSPIRATION_DIR_NAME)
       } catch {
-        // Already there — the only expected failure.
+        // Already there.
       }
       const created = await api.fsCreateFile(scope, dir, fileName)
       onOpenFile(created.path)
-      await reload()
+      setLocalTick(tick => tick + 1)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     }
-  }, [cwd, dir, onOpenFile, reload, rows.length, scope])
+  }, [cwd, dir, onOpenFile, scope])
 
   return (
     <div className={css.inspirationSection}>
@@ -112,7 +132,7 @@ export function InspirationSection(props: InspirationSectionProps): ReactNode {
           type="button"
           className={css.toolButton}
           title="刷新"
-          onClick={() => { void reload() }}
+          onClick={() => { setLocalTick(tick => tick + 1) }}
         >刷新</button>
       </div>
       {creating ? (
@@ -131,25 +151,33 @@ export function InspirationSection(props: InspirationSectionProps): ReactNode {
         </div>
       ) : null}
       {error !== null ? <div className={css.error}>{error}</div> : null}
-      <div className={css.noteList}>
-        {loading ? <div className={css.empty}>读取中…</div> : null}
-        {!loading && rows.length === 0 ? (
-          <div className={css.empty}>
-            还没有灵感。<br />点「+ 新建灵感」创建第一个 .md，文件落在 <code>{INSPIRATION_DIR_NAME}/</code>。
-          </div>
-        ) : null}
-        {rows.map(row => (
-          <button
-            key={row.path}
-            type="button"
-            className={css.noteRow}
-            title={row.path}
-            onClick={() => { onOpenFile(row.path) }}
-          >
-            <span className={css.noteGlyph} aria-hidden>▤</span>
-            <span className={css.noteName}>{row.name}</span>
-          </button>
-        ))}
+      {rootEmpty && creating === false ? (
+        <div className={css.empty}>
+          还没有灵感。<br />点「+ 新建灵感」创建第一个 .md，文件落在 <code>{INSPIRATION_DIR_NAME}/</code>。
+        </div>
+      ) : null}
+      <div className={css.treeHost}>
+        {dir === undefined
+          ? <div className={css.empty}>工作区尚未就绪</div>
+          : (
+              <FileTree
+                sessionId={scope.sessionId}
+                cwd={dir}
+                expanded={expanded}
+                revealed={[]}
+                onToggle={toggleDir}
+                onOpenFile={onOpenFile}
+                onReferenceFile={onReferenceFile}
+                refreshTick={refreshTick + localTick}
+                onUploadRequest={onUploadRequest}
+                busy={busy}
+                visible={visible}
+                exclude={[]}
+                service={service}
+                openInApp={openInApp}
+                scroll={false}
+              />
+            )}
       </div>
     </div>
   )

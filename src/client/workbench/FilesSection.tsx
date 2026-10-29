@@ -11,10 +11,11 @@
  * - an explicit "new file / new folder" entry at the top of the section, since
  *   the tree's own creation lives behind a row's context menu.
  */
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Context } from '../../context-types.ts'
 import { api } from '../api.ts'
 import { FileTree, joinChild } from '../FileTree.tsx'
+import { createOpenInApp } from '../open-in-app.ts'
 import type { BetterSidebarService, TabComponentProps } from '../service.ts'
 import type { UploadItem } from '../upload.ts'
 import css from './workbench.module.css'
@@ -50,6 +51,8 @@ export function FilesSection(props: FilesSectionProps): ReactNode {
   /** The workspace root itself has no rows (the tree draws nothing for it). */
   const [rootEmpty, setRootEmpty] = useState(false)
   const service = ctx.get('betterSidebar') as BetterSidebarService | undefined
+  /** Host open-in-app face: supplies "打开方式 …" and "在文件管理器中显示". */
+  const openInApp = useMemo(() => createOpenInApp(ctx), [ctx])
   /** Where the create buttons land: the followed directory, else the root. */
   const createIn = targetDir ?? cwd
 
@@ -172,6 +175,7 @@ export function FilesSection(props: FilesSectionProps): ReactNode {
                 visible={visible}
                 exclude={[]}
                 service={service}
+                openInApp={openInApp}
                 // The rail is the single scroller; a tree-owned scrollbar next
                 // to it would read as doubled chrome.
                 scroll={false}
