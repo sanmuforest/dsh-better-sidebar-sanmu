@@ -35,7 +35,8 @@
     "./locale/*.json": "./locale/*.json"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "dsh": ">=0.2.1-rc.1 <0.3.0"
   },
   "packageManager": "pnpm@11.8.0",
   "dsh": {
@@ -67,6 +68,7 @@
     "scripts/install.sh",
     "scripts/install.ps1",
     "cordis.patch.yml",
+    "dsh.plugin.json",
     "README.md",
     "README_ZH.md",
     "LICENSE",
