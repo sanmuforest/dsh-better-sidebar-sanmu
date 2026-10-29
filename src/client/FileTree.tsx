@@ -285,6 +285,10 @@ const FileRow = memo(function FileRow(props: FileRowProps): ReactNode {
       onDrop={(event) => { actions.drop(event, entry.path, false) }}
       onContextMenu={(event) => { actions.contextMenu(event, entry.path, false) }}
     >
+      {depth > 0 && <span className={css.explorerGuides} style={{ width: depth * 22 + 12 }} aria-hidden />}
+      {/* Files sit one chevron column to the right of their folder icon so the
+          name column lines up with directory rows. */}
+      <span className={css.explorerChevronSpacer} aria-hidden />
       {icon}
       <span className={clsx(css.explorerName, gitTone !== undefined && css.explorerGitName)} data-git-tone={gitTone}>
         {entry.name}
@@ -376,6 +380,11 @@ const DirRow = memo(function DirRow(props: DirRowProps): ReactNode {
       onDrop={(event) => { actions.drop(event, target.path, true) }}
       onContextMenu={(event) => { actions.contextMenu(event, target.path, true) }}
     >
+      {depth > 0 && <span className={css.explorerGuides} style={{ width: depth * 22 + 12 }} aria-hidden />}
+      <span
+        className={expanded ? `${css.explorerChevron} ${css.explorerChevronOpen}` : css.explorerChevron}
+        aria-hidden
+      >▸</span>
       {icon}
       <span className={clsx(css.explorerName, gitChanged && css.explorerDirChanged)}>
         {chain.length > 1 ? chain.map(link => link.name).join('/') : entry.name}
@@ -433,6 +442,7 @@ const RootRow = memo(function RootRow(props: RootRowProps): ReactNode {
       onDrop={(event) => { actions.drop(event, path, true) }}
       onContextMenu={(event) => { actions.contextMenu(event, path, true) }}
     >
+      <span className={css.explorerChevronSpacer} aria-hidden />
       {icon}
       <span className={clsx(css.explorerName, gitChanged && css.explorerDirChanged)}>{baseName(path)}</span>
       {copied

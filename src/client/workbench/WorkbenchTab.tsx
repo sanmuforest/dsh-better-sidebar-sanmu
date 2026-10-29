@@ -25,7 +25,6 @@ import type { TabComponentProps, EditorToolbarControls, EditorToolbarState } fro
 import { baseName } from '../FileTree.tsx'
 import { useSessionRoot } from '../use-session-root.ts'
 import { referenceInChat } from '../reference-in-chat.ts'
-import { ConfirmDialog } from '../ui/index.ts'
 import { Section } from './Section.tsx'
 import { FilesSection } from './FilesSection.tsx'
 import { InspirationSection } from './InspirationSection.tsx'
@@ -74,6 +73,9 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
   const [toolbar, setToolbar] = useState<EditorToolbarState | null>(null)
   const controlsRef = useRef<EditorToolbarControls | null>(null)
   const [pending, setPending] = useState<PendingAction | undefined>(undefined)
+  /** The unsaved-changes dialog is waiting for the editor to finish saving. */
+  const saveThenActRef = useRef(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [browserError, setBrowserError] = useState<string | null>(null)
   /** Directory the rail's "+ 文件 / + 文件夹" buttons create into. */
   const [createDir, setCreateDir] = useState<string | undefined>(undefined)
@@ -156,10 +158,10 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
     })
   }, [toolbar?.dirty, ui.openPath])
 
-  const confirmPending = useCallback(() => {
-    const action = pending
+  /** Perform a confirmed pending action (switch file / close the editor). */
+  const performPending = useCallback((action: PendingAction) => {
     setPending(undefined)
-    if (action === undefined) return
+    setSaveError(null)
     setToolbar(null)
     if (action.kind === 'open') {
       landOn(action.path)
@@ -170,7 +172,45 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
       delete next.openPath
       return next
     })
-  }, [landOn, pending])
+  }, [landOn])
+
+  /** "不保存": drop the edits and continue. */
+  const discardPending = useCallback(() => {
+    saveThenActRef.current = false
+    if (pending !== undefined) performPending(pending)
+  }, [pending, performPending])
+
+  const cancelPending = useCallback(() => {
+    saveThenActRef.current = false
+    setPending(undefined)
+    setSaveError(null)
+  }, [])
+
+  /** "保存": save through the editor, then continue once it reports clean. */
+  const savePending = useCallback(() => {
+    if (controlsRef.current === null) {
+      setSaveError('当前文件不支持保存（编辑器未就绪）。')
+      return
+    }
+    saveThenActRef.current = true
+    setSaveError(null)
+    controlsRef.current.save()
+  }, [])
+
+  // Continue a save-then-act once the editor reports the document clean.
+  // A failed save keeps the dialog open with the reason instead of switching.
+  useEffect(() => {
+    if (!saveThenActRef.current || pending === undefined || toolbar === null) return
+    if (toolbar.saveState === 'failed') {
+      saveThenActRef.current = false
+      setSaveError('保存失败：文件可能已在磁盘上被修改，请先处理冲突。')
+      return
+    }
+    if (toolbar.dirty === false) {
+      saveThenActRef.current = false
+      performPending(pending)
+    }
+  }, [toolbar, pending, performPending])
 
   const referenceFile = useCallback((path: string, isDir: boolean) => {
     referenceInChat(ctx, scope.sessionId, path, isDir)
@@ -336,8 +376,10 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
         <div className={css.editorHead}>
           <span className={css.fileName} title={ui.openPath ?? ''}>
             {ui.openPath === undefined ? '工作台' : baseName(ui.openPath)}
+            {toolbar?.dirty === true
+              ? <span className={css.unsavedMark} title="有未保存的修改" aria-label="有未保存的修改">*</span>
+              : null}
           </span>
-          {toolbar?.dirty === true ? <span className={css.dirtyDot} title="有未保存的修改">●</span> : null}
           <span className={css.headSpacer} />
           {toolbar?.modes === true && toolbar.mode === 'edit'
             ? <button type="button" className={css.headButton} onClick={() => { controlsRef.current?.setMode('preview') }}>预览</button>
@@ -391,16 +433,22 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
             )}
       </div>
 
-      <ConfirmDialog
-        open={pending !== undefined}
-        title="有未保存的修改"
-        description="当前文件还有未保存的修改，继续会丢弃它们。"
-        confirmLabel="丢弃并继续"
-        cancelLabel="取消"
-        danger
-        onConfirm={confirmPending}
-        onClose={() => { setPending(undefined) }}
-      />
+      {pending !== undefined ? (
+        <div className={css.modalOverlay}>
+          <div className={css.modal} role="dialog" aria-modal="true" aria-label="有未保存的修改">
+            <div className={css.modalTitle}>有未保存的修改</div>
+            <div className={css.modalText}>
+              「{ui.openPath === undefined ? '' : baseName(ui.openPath)}」还有未保存的修改。
+            </div>
+            {saveError !== null ? <div className={css.error}>{saveError}</div> : null}
+            <div className={css.modalActions}>
+              <button type="button" className={css.modalButton} onClick={cancelPending}>取消</button>
+              <button type="button" className={css.modalButton} onClick={discardPending}>不保存</button>
+              <button type="button" className={css.modalPrimary} onClick={savePending}>保存</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

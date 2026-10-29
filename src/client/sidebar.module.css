@@ -768,6 +768,49 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   padding: 4px 8px 8px;
 }
 
+/* VSCode-style tree chrome: one chevron column before a directory's folder
+   glyph (a same-width spacer keeps file names aligned), plus faint vertical
+   guides at every ancestor indentation level. The guides are absolutely
+   positioned inside the row's own indent padding, so they never shift the
+   label or the hit area. */
+.explorerChevron,
+.explorerChevronSpacer {
+  flex: 0 0 auto;
+  width: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--dsw-alias-state-idle-primary);
+}
+
+.explorerChevron {
+  transition: transform 120ms ease;
+}
+
+.explorerChevronOpen {
+  transform: rotate(90deg);
+}
+
+.explorerGuides {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent 11px,
+    var(--dsw-alias-border-l1) 11px,
+    var(--dsw-alias-border-l1) 12px,
+    transparent 12px,
+    transparent 22px
+  );
+}
+
 /* One tree row: the plugin's native list rhythm (28px, radius 4, inset,
    hover fill, 22px indent step, 12px ink) with a mount fade so expanding a
    directory reveals its children gently (stable keys keep existing rows from
