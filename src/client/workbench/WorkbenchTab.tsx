@@ -237,6 +237,23 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
     setUi(current => (current.leftWidth === width ? current : { ...current, leftWidth: width }))
   }, [widthFromClientX])
 
+  // Ctrl/Cmd+S anywhere in the workbench saves the open file. The editor's own
+  // keymap handles the focused case and marks the event handled; this listener
+  // covers focus outside CodeMirror (the rail, the header) and never double-saves.
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent): void => {
+      // A parked body keeps its listeners: only the tab the reader is LOOKING
+      // at may claim the shortcut.
+      if (!visible) return
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return
+      if (event.defaultPrevented || toolbar?.editable !== true) return
+      event.preventDefault()
+      controlsRef.current?.save()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('keydown', onKeyDown) }
+  }, [toolbar?.editable, visible])
+
   const endDrag = useCallback((event: PointerEvent<HTMLDivElement>) => {
     if (!draggingRef.current) return
     draggingRef.current = false
@@ -367,7 +384,9 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
                   type="button"
                   className={css.headButton}
                   disabled={toolbar.saveState === 'saving'}
-                  title="保存 (Ctrl/Cmd+S)"
+                  title={toolbar.saveState === 'failed'
+                    ? '保存失败：文件可能已在磁盘上被修改，请处理冲突后重试'
+                    : '保存 (Ctrl/Cmd+S)'}
                   onClick={() => { controlsRef.current?.save() }}
                 >{saveLabel}</button>
               )

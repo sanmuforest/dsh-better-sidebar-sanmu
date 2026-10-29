@@ -11,7 +11,7 @@
  * - an explicit "new file / new folder" entry at the top of the section, since
  *   the tree's own creation lives behind a row's context menu.
  */
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import type { Context } from '../../context-types.ts'
 import { api } from '../api.ts'
 import { FileTree, joinChild } from '../FileTree.tsx'
@@ -47,9 +47,23 @@ export function FilesSection(props: FilesSectionProps): ReactNode {
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  /** The workspace root itself has no rows (the tree draws nothing for it). */
+  const [rootEmpty, setRootEmpty] = useState(false)
   const service = ctx.get('betterSidebar') as BetterSidebarService | undefined
   /** Where the create buttons land: the followed directory, else the root. */
   const createIn = targetDir ?? cwd
+
+  // An empty ROOT is the one empty state the tree cannot show by itself: it
+  // renders rows, and zero rows is a blank panel. One cheap root listing keeps
+  // the "nothing here yet" hint honest without duplicating the tree's cache.
+  useEffect(() => {
+    if (cwd === undefined || !visible) return
+    const controller = new AbortController()
+    void api.fsTree(scope, cwd, [], controller.signal)
+      .then(listing => { setRootEmpty(listing.entries.length === 0) })
+      .catch(() => { setRootEmpty(false) })
+    return () => { controller.abort() }
+  }, [cwd, scope, visible, refreshTick])
 
   const commit = useCallback(async () => {
     if (creating === null || createIn === undefined) return
@@ -135,6 +149,11 @@ export function FilesSection(props: FilesSectionProps): ReactNode {
         </div>
       ) : null}
       {error !== null ? <div className={css.error}>{error}</div> : null}
+      {rootEmpty && cwd !== undefined && creating === null ? (
+        <div className={css.empty}>
+          工作区还是空的。<br />用上方「+ 文件」新建第一个文件。
+        </div>
+      ) : null}
       <div className={css.treeHost}>
         {cwd === undefined
           ? <div className={css.empty}>工作区尚未就绪</div>
