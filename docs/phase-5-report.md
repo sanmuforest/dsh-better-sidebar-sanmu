@@ -58,7 +58,34 @@ npm publish --registry <你的registry> --cache .npm-cache --ignore-scripts
 
 若 registry 需要 `publishConfig.registry` 固定，告诉我地址，我会写进 `package.json` 并重新打包；若是私有 scope（如 `@sanmu/dsh-workbench`），名称也需要一并改（含 `cordis.patch.yml`、`dsh.plugin.json`、tsdown 的 bundle id），这一步我可以一次改完。
 
-## 5. 待你确认
+## 5. GitHub 发布（已完成）
+
+| 项 | 值 |
+|---|---|
+| 代码仓库 | `github.com/sanmuforest/dsh-better-sidebar-sanmu`，`main` 分支 |
+| 首次提交 / 标签 | `v0.1.0`（annotated tag） |
+| Release 产物 | `dsh-better-sidebar-sanmu-0.1.0.tgz`（6,089,044 B），由 Actions 构建并挂到 Release |
+| 工作流 | `.github/workflows/release.yml`（tag `v*` 触发：npm ci → tsc → tsdown → npm pack → 上传 Release 资产，使用自带 `GITHUB_TOKEN`，**无需 secret**）；`.github/workflows/ci.yml`（push/PR 跑 typecheck + bundle） |
+| 从 URL 安装复测 | **成功**。profile 现依赖 `https://github.com/.../releases/download/v0.1.0/dsh-better-sidebar-sanmu-0.1.0.tgz`，`application: applied`，loader 行 `include:sanmu-workbench` 正常 |
+
+> 本机直连 GitHub Release 下载被限速（HEAD 超时重试、约 7 分钟），属于网络环境问题；换 registry 安装会快得多。
+> 仓库里还留着一条**早期失败的 `CI` run**（来自被替换掉的上游 workflow 的首推），新的 `ci` / `release` 均为绿色，可忽略。
+
+## 6. 发布到 registry（可选，等你决定）
+
+三条路：
+
+| 方式 | 需要你提供 | 我能做什么 |
+|---|---|---|
+| npm 公共库 | npm 账号 + `NPM_TOKEN`（或 `npm login`） | 改 `publishConfig`、加 publish job、执行发布 |
+| GitHub Packages | 改成 scoped 名 `@sanmuforest/dsh-better-sidebar-sanmu` + PAT(`write:packages`) | 一次性改包名/清单/patch/bundle id，再发布 |
+| 自建（Verdaccio 等） | registry 地址 + token | 写入 `publishConfig.registry`、发布 |
+
+**不发布也可以**：当前已用 GitHub Release 作为分发渠道，安装命令即：
+`dsh plugin --profile <profile> add https://github.com/sanmuforest/dsh-better-sidebar-sanmu/releases/download/v0.1.0/dsh-better-sidebar-sanmu-0.1.0.tgz`
+
+## 7. 待你确认
 
 - 重启后按 T8/T10 过一遍（折叠/宽度恢复、原生页签正常）。
-- 给 registry 地址 + 认证方式，或明确「只保留本地 tarball，不发布」。
+- 选 registry 路线（或明确只用 GitHub Release）。
+
