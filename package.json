@@ -1,6 +1,6 @@
 {
   "name": "dsh-better-sidebar-sanmu",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DSH Workbench: a VSCode-style workbench inside the right sidebar (files, inspiration, tasks and Git on the left, editor on the right). Fork of dsh-better-sidebar (MIT).",
   "type": "module",
   "repository": {

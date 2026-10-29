@@ -1,6 +1,6 @@
 {
   "id": "dsh-external/dsh-better-sidebar-sanmu",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "./lib/index.js",
   "description": "DSH 工作台——在右侧边栏内提供 VSCode 式工作台：左侧文件 / 灵感 / 任务 / Git 四组折叠，右侧固定编辑区。Fork 自 dsh-better-sidebar（MIT）",
   "engines": {
