@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Context } from '../../context-types.ts'
 import { api } from '../api.ts'
-import { FileTree, joinChild } from '../FileTree.tsx'
+import { FileTree } from '../FileTree.tsx'
 import { createOpenInApp } from '../open-in-app.ts'
 import type { BetterSidebarService, TabComponentProps } from '../service.ts'
 import type { UploadItem } from '../upload.ts'
@@ -39,9 +39,22 @@ function noteName(): string {
   return `灵感-${stamp}.md`
 }
 
+/**
+ * Join one child onto a workspace path using the SAME separator dialect the
+ * host reports. The tree indexes levels by the exact path string the host
+ * echoes back, so a client-built `/` on Windows (`…\DSH测试/.dsh-whiteboard`)
+ * never matches the host's `…\DSH测试\.dsh-whiteboard` and the level stays on
+ * "加载中…" forever.
+ */
+function childOf(root: string, name: string): string {
+  const base = root.replace(/[\\/]+$/, '')
+  const separator = base.includes('\\') ? '\\' : '/'
+  return `${base}${separator}${name}`
+}
+
 export function InspirationSection(props: InspirationSectionProps): ReactNode {
   const { ctx, scope, visible, cwd, onOpenFile, onReferenceFile, refreshTick } = props
-  const dir = cwd === undefined ? undefined : joinChild(cwd, INSPIRATION_DIR_NAME)
+  const dir = cwd === undefined ? undefined : childOf(cwd, INSPIRATION_DIR_NAME)
   const [expanded, setExpanded] = useState<string[]>([])
   const [localTick, setLocalTick] = useState(0)
   const [creating, setCreating] = useState(false)

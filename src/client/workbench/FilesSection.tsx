@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Context } from '../../context-types.ts'
 import { api } from '../api.ts'
-import { FileTree, joinChild } from '../FileTree.tsx'
+import { FileTree } from '../FileTree.tsx'
 import { createOpenInApp } from '../open-in-app.ts'
 import type { BetterSidebarService, TabComponentProps } from '../service.ts'
 import type { UploadItem } from '../upload.ts'
