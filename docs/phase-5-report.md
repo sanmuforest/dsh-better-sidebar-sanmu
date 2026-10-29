@@ -71,6 +71,18 @@ npm publish --registry <你的registry> --cache .npm-cache --ignore-scripts
 > 本机直连 GitHub Release 下载被限速（HEAD 超时重试、约 7 分钟），属于网络环境问题；换 registry 安装会快得多。
 > 仓库里还留着一条**早期失败的 `CI` run**（来自被替换掉的上游 workflow 的首推），新的 `ci` / `release` 均为绿色，可忽略。
 
+### 发布记录
+
+| 版本 | tag | 内容 | 安装 URL |
+|---|---|---|---|
+| 0.1.0 | `v0.1.0` | 首个可用版：工作台四栏 + 编辑器 + 浏览器入口 | `…/releases/download/v0.1.0/dsh-better-sidebar-sanmu-0.1.0.tgz` |
+| 0.1.1 | `v0.1.1` | 「在文件管理器中显示」；灵感根复用完整文件树（含全部右键菜单）；修复灵感根层级因分隔符不匹配卡在「加载中」 | `…/releases/download/v0.1.1/dsh-better-sidebar-sanmu-0.1.1.tgz` |
+
+下一版发版流程（无需人工构建）：改 `package.json` + `dsh.plugin.json` 的 `version` → commit → `git tag -a vX.Y.Z` → push tag → Actions 自动构建并挂 Release；**tag 必须与 version 一致**。
+
+当前 `desktop` profile 已装 `0.1.1`（Release URL，不是本地 tarball），loader 行 `include:sanmu-workbench` 正常。
+
+
 ## 6. 发布到 registry（可选，等你决定）
 
 三条路：
