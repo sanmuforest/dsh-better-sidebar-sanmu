@@ -780,13 +780,18 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
+  font-size: 12px;
+  font-weight: 700;
   line-height: 1;
-  color: var(--dsw-alias-state-idle-primary);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .explorerChevron {
   transition: transform 120ms ease;
+}
+
+.explorerChevron:hover {
+  color: var(--dsw-alias-label-primary);
 }
 
 .explorerChevronOpen {
@@ -799,13 +804,13 @@ body[data-dsh-sidebar-dragging] .bottomPanel {
   top: 0;
   bottom: 0;
   pointer-events: none;
-  opacity: 0.5;
+  opacity: 0.8;
   background-image: repeating-linear-gradient(
     to right,
     transparent 0,
     transparent 11px,
-    var(--dsw-alias-border-l1) 11px,
-    var(--dsw-alias-border-l1) 12px,
+    var(--dsw-alias-border-l2) 11px,
+    var(--dsw-alias-border-l2) 12px,
     transparent 12px,
     transparent 22px
   );

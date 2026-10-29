@@ -20,7 +20,7 @@
  * open file persist per session (see `state.ts`).
  */
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
-import { VscChecklist, VscFiles, VscGlobe, VscLightbulb, VscSourceControl } from 'react-icons/vsc'
+import { VscChecklist, VscFiles, VscLightbulb, VscSourceControl } from 'react-icons/vsc'
 import type { TabComponentProps, EditorToolbarControls, EditorToolbarState } from '../service.ts'
 import { baseName } from '../FileTree.tsx'
 import { useSessionRoot } from '../use-session-root.ts'
@@ -57,11 +57,6 @@ type PendingAction = { kind: 'open'; path: string } | { kind: 'close' }
 
 const ICON_SIZE = 14
 
-/** The host right-Sidebar controller slice the browser launcher needs. */
-interface BrowserOpener {
-  openTab(kind: string, options?: { params?: unknown; revealIfOpened?: boolean; preferNewPane?: boolean }): void
-}
-
 export function WorkbenchTab(props: TabComponentProps): ReactNode {
   const { ctx, store, scope, visible } = props
   const cwd = useSessionRoot(ctx, scope.sessionId, { visible })
@@ -76,7 +71,6 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
   /** The unsaved-changes dialog is waiting for the editor to finish saving. */
   const saveThenActRef = useRef(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [browserError, setBrowserError] = useState<string | null>(null)
   /** Directory the rail's "+ 文件 / + 文件夹" buttons create into. */
   const [createDir, setCreateDir] = useState<string | undefined>(undefined)
 
@@ -217,26 +211,6 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
   }, [ctx, scope.sessionId])
 
   const mutate = useCallback(() => { setRefreshTick(tick => tick + 1) }, [])
-
-  /** Open the host's own Browser tab (desktop profile only; absent on web). */
-  const openBrowser = useCallback(() => {
-    let controller: BrowserOpener | undefined
-    try {
-      controller = ctx.get('sidebarRight') as unknown as BrowserOpener | undefined
-    } catch {
-      controller = undefined
-    }
-    if (controller === undefined) {
-      setBrowserError('当前部署没有提供浏览器页签（browser kind 仅在 desktop profile 挂载）。')
-      return
-    }
-    try {
-      controller.openTab('browser', { params: {} })
-      setBrowserError(null)
-    } catch (cause) {
-      setBrowserError(`打开浏览器失败：${cause instanceof Error ? cause.message : String(cause)}`)
-    }
-  }, [ctx])
 
   const onToolbarState = useCallback((state: EditorToolbarState | null) => { setToolbar(state) }, [])
   const onToolbarControls = useCallback((controls: EditorToolbarControls | null) => {
@@ -398,19 +372,10 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
                 >{saveLabel}</button>
               )
             : null}
-          <button type="button" className={css.iconButton} title="新建浏览器标签" onClick={openBrowser}>
-            <VscGlobe size={15} />
-          </button>
           {ui.openPath !== undefined
             ? <button type="button" className={css.iconButton} title="关闭文件" onClick={requestClose}>×</button>
             : null}
         </div>
-        {browserError !== null ? (
-          <div className={css.error}>
-            {browserError}
-            <button type="button" className={css.linkButton} onClick={() => { setBrowserError(null) }}>知道了</button>
-          </div>
-        ) : null}
         {ui.openPath === undefined
           ? (
               <div className={css.rightBody}>

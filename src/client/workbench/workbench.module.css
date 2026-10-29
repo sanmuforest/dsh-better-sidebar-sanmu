@@ -366,6 +366,34 @@
   color: var(--dsw-alias-brand-primary);
 }
 
+/* In-strip launcher inside the workbench's tab chip. */
+.chipAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.chipAction:hover {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.chipWarn {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--dsw-alias-state-warn-primary);
+}
+
 /* ── Unsaved-changes dialog (three actions: 取消 / 不保存 / 保存) ─────── */
 .modalOverlay {
   position: absolute;

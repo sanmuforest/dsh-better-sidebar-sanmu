@@ -23,6 +23,9 @@
  * absent from the native guide and `openTab` refuses it.
  */
 import type { Context } from '../../context-types.ts'
+import { createElement } from 'react'
+import { WORKBENCH_TAB_ID } from '../workbench/constants.ts'
+import { StripBrowserButton } from '../workbench/StripBrowserButton.tsx'
 import { addressBaseOf, resolveAddressPath } from '../address-base.ts'
 import { t } from '../locales.ts'
 import { splitTrailingLineSpec } from '../path-line.ts'
@@ -341,6 +344,12 @@ export function registerNativeSurface(deps: NativeSurfaceDeps): () => void {
             descriptorId: injected.descriptorId,
             sessionId,
             ...(params.paramsOf === undefined ? {} : { paramsOf: params.paramsOf }),
+            // The workbench's browser launcher lives in the STRIP, which has no
+            // per-type action seat: it rides this tab's chip instead of the
+            // editor header. Every other type keeps a bare chip.
+            ...(injected.descriptorId === WORKBENCH_TAB_ID
+              ? { stripAction: createElement(StripBrowserButton, { ctx }) }
+              : {}),
           }),
         }, NativeTabTitle)))
       } catch (error) {

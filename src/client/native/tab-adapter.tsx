@@ -594,6 +594,13 @@ export interface NativeTitleInjected {
    */
   readonly sessionId: string
   /**
+   * An in-strip launcher owned by the tab type (the workbench's browser
+   * button). The right column's tab strip is host chrome with no per-type
+   * action seat, so an always-visible strip control has to ride the chip.
+   * Absent for every other type.
+   */
+  readonly stripAction?: ReactNode
+  /**
    * The seed fields the native RECORD itself carries, when the type declares
    * them (a file address names the file the tab shows).
    *
@@ -672,6 +679,7 @@ export function NativeTabTitle(props: NativeTitleInjected & NativeBodyFrameworkP
       {/* Decorative: the chip's accessible name stays the title. */}
       <span className={css.chipIcon} aria-hidden="true">{glyph}</span>
       {title}
+      {props.stripAction === undefined ? null : props.stripAction}
       {unread ? <UnreadDot /> : null}
     </>
   )

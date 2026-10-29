@@ -12,10 +12,11 @@ import type { ReactNode } from 'react'
 import { isZh } from '../locales.ts'
 import { IconPanelBottomOutline16 } from '../icons.tsx'
 import type { TabDescriptor } from '../service.ts'
+import { WORKBENCH_TAB_ID } from './constants.ts'
 import { WorkbenchTab } from './WorkbenchTab.tsx'
 
 /** The tab type id; also the native `kind` the host registers. */
-export const WORKBENCH_TAB_ID = 'workbench'
+export { WORKBENCH_TAB_ID }
 
 export function workbenchTab(): TabDescriptor {
   return {

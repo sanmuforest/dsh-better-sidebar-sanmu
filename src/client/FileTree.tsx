@@ -383,8 +383,9 @@ const DirRow = memo(function DirRow(props: DirRowProps): ReactNode {
       {depth > 0 && <span className={css.explorerGuides} style={{ width: depth * 22 + 12 }} aria-hidden />}
       <span
         className={expanded ? `${css.explorerChevron} ${css.explorerChevronOpen}` : css.explorerChevron}
+        data-state={expanded ? 'open' : 'closed'}
         aria-hidden
-      >▸</span>
+      >&gt;</span>
       {icon}
       <span className={clsx(css.explorerName, gitChanged && css.explorerDirChanged)}>
         {chain.length > 1 ? chain.map(link => link.name).join('/') : entry.name}
