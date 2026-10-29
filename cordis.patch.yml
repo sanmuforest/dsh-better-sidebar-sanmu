@@ -1,0 +1,23 @@
+# dsh-better-sidebar-sanmu bundle patch
+#
+# This file is the `dsh.bundle.patch` layer of this fork: when the plugin is
+# installed through the official CLI —
+#
+#   dsh plugin --profile <name> add dsh-better-sidebar-sanmu@<version>
+#
+# — the command reconciles `dsh.profile.bundles` against installed packages
+# and, seeing this declaration, appends `dsh-better-sidebar-sanmu` to the
+# bundle stack. The profile boot then merges THIS patch (a single `insert` of
+# the plugin row).
+#
+# Double-mount guard: this package is a FORK of `dsh-better-sidebar`. Mounting
+# both would register /sidebar/api twice and fail the whole plugin tree at boot
+# ("duplicate prefix route"), so this row backs itself off whenever ANOTHER
+# enabled entry already mounts either package under a different id. The loader
+# evaluates it when this row is processed (entry-list order, only rows before
+# this one are visible), so the upstream bundle must precede this one in
+# `dsh.profile.bundles`.
+- insert:
+    - id: sanmu-workbench
+      name: 'dsh-better-sidebar-sanmu'
+      disabled: !!js "[...ctx.loader.entries()].some((e) => (e.options.name === 'dsh-better-sidebar' || e.options.name === 'dsh-better-sidebar-sanmu') && e.options.id !== 'sanmu-workbench' && !e.disabled)"

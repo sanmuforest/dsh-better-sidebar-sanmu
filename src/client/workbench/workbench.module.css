@@ -1,0 +1,110 @@
+/* Workbench shell: left rail (four collapsible roots) + fixed content area.
+ *
+ * Skin contract: colour/spacing values come from the DSH theme tokens only
+ * (see docs/external-plugin-guide.md §12). No hard-coded palette here. */
+.workbench {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+}
+
+.left {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: var(--dsw-specific-sidebar-fill);
+  border-right: 1px solid var(--dsw-alias-border-l1);
+}
+
+.leftBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+}
+
+.leftTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  color: var(--dsw-alias-label-secondary);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+
+.empty {
+  color: var(--dsw-alias-label-secondary);
+  line-height: 1.6;
+  padding: 4px 2px;
+}
+
+.splitter {
+  flex: 0 0 auto;
+  width: 5px;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+  border-left: 1px solid transparent;
+  border-right: 1px solid transparent;
+  transition: background 120ms ease;
+}
+
+.splitter:hover,
+.splitterActive {
+  background: var(--dsw-alias-brand-primary);
+  opacity: 0.35;
+}
+
+.right {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-base);
+}
+
+.rightHead {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.rightBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.rightEmpty {
+  color: var(--dsw-alias-label-secondary);
+  text-align: center;
+  line-height: 1.7;
+  max-width: 240px;
+}
