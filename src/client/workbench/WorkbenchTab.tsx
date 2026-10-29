@@ -6,28 +6,32 @@
  * workbench layout inside one native tab:
  *
  *   ┌───────────────┬─┬───────────────────────────────┐
- *   │ 文件          │ │ content area                  │
- *   │ 灵感          │ │ (file preview / editor)       │
- *   │ 任务          │ │                               │
+ *   │ 文件          │ │ header: file · mode · save · 🌐 │
+ *   │ 灵感          │ ├───────────────────────────────┤
+ *   │ 任务          │ │ editor / preview              │
  *   │ Git           │ │                               │
  *   └───────────────┴─┴───────────────────────────────┘
  *
  * The four roots are independent collapsible sections; only an OPEN section
- * mounts its panel, so a folded Git/Tasks root stops polling. Rail width,
- * folded state, expanded directories and the open file persist per session
- * (see `state.ts`).
+ * mounts its panel, so a folded Git/Tasks root stops polling. The header is
+ * stable across files: it carries the current file name, the editor's merged
+ * toolbar (mode toggle + save, reported by the upstream CodeMirror viewer) and
+ * the browser launcher. Rail width, folded state, expanded directories and the
+ * open file persist per session (see `state.ts`).
  */
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
-import { VscChecklist, VscFiles, VscLightbulb, VscSourceControl } from 'react-icons/vsc'
-import type { TabComponentProps } from '../service.ts'
+import { VscChecklist, VscFiles, VscGlobe, VscLightbulb, VscSourceControl } from 'react-icons/vsc'
+import type { TabComponentProps, EditorToolbarControls, EditorToolbarState } from '../service.ts'
+import { baseName } from '../FileTree.tsx'
 import { useSessionRoot } from '../use-session-root.ts'
 import { referenceInChat } from '../reference-in-chat.ts'
+import { ConfirmDialog } from '../ui/index.ts'
 import { Section } from './Section.tsx'
 import { FilesSection } from './FilesSection.tsx'
 import { InspirationSection } from './InspirationSection.tsx'
 import { TasksSection } from './TasksSection.tsx'
 import { GitSection } from './GitSection.tsx'
-import { FilePane } from './FilePane.tsx'
+import { EditorPane } from './EditorPane.tsx'
 import {
   LEFT_MIN,
   RIGHT_MIN,
@@ -43,12 +47,20 @@ function clampLeft(width: number, total: number): number {
   return Math.min(Math.max(Math.round(width), LEFT_MIN), ceiling)
 }
 
-const ICON_SIZE = 14
-
 /** The directory part of an absolute path in either separator dialect. */
 function parentDir(path: string): string {
   const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
   return cut > 0 ? path.slice(0, cut) : path
+}
+
+/** What a pending "unsaved changes" confirmation is about to do. */
+type PendingAction = { kind: 'open'; path: string } | { kind: 'close' }
+
+const ICON_SIZE = 14
+
+/** The host right-Sidebar controller slice the browser launcher needs. */
+interface BrowserOpener {
+  openTab(kind: string, options?: { params?: unknown; revealIfOpened?: boolean; preferNewPane?: boolean }): void
 }
 
 export function WorkbenchTab(props: TabComponentProps): ReactNode {
@@ -58,6 +70,13 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
 
   const [ui, setUi] = useState<WorkbenchPersisted>(() => loadWorkbench(scope.sessionId))
   const [refreshTick, setRefreshTick] = useState(0)
+  /** Editor toolbar state reported by the upstream viewer (null: no editor). */
+  const [toolbar, setToolbar] = useState<EditorToolbarState | null>(null)
+  const controlsRef = useRef<EditorToolbarControls | null>(null)
+  const [pending, setPending] = useState<PendingAction | undefined>(undefined)
+  const [browserError, setBrowserError] = useState<string | null>(null)
+  /** Directory the rail's "+ 文件 / + 文件夹" buttons create into. */
+  const [createDir, setCreateDir] = useState<string | undefined>(undefined)
 
   // Persist on every change: the document is tiny (a few hundred bytes) and a
   // reload must restore exactly what the reader left behind.
@@ -66,9 +85,6 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
   const rootRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
   const [dragging, setDragging] = useState(false)
-  /** Directory the rail's "+ 文件 / + 文件夹" buttons create into. Follows the
-   *  last directory the reader opened or expanded; `undefined` = workspace root. */
-  const [createDir, setCreateDir] = useState<string | undefined>(undefined)
 
   // Keep the rail inside the panel: a width dragged on a wider window must not
   // squeeze the content area to zero when the panel comes back narrower.
@@ -109,24 +125,83 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
     })
   }, [])
 
-  const openFile = useCallback((path: string) => {
+  /** Actually land on a file (no dirty check — callers do that). */
+  const landOn = useCallback((path: string) => {
     setCreateDir(parentDir(path))
+    setToolbar(null)
     setUi(current => ({ ...current, openPath: path }))
   }, [])
 
-  const closeFile = useCallback(() => {
+  /** Open a file, asking first when the current editor has unsaved edits. */
+  const requestOpen = useCallback((path: string) => {
+    if (path === ui.openPath) return
+    if (toolbar?.dirty === true) {
+      setPending({ kind: 'open', path })
+      return
+    }
+    landOn(path)
+  }, [landOn, toolbar?.dirty, ui.openPath])
+
+  const requestClose = useCallback(() => {
+    if (ui.openPath === undefined) return
+    if (toolbar?.dirty === true) {
+      setPending({ kind: 'close' })
+      return
+    }
+    setToolbar(null)
     setUi(current => {
       const next = { ...current }
       delete next.openPath
       return next
     })
-  }, [])
+  }, [toolbar?.dirty, ui.openPath])
+
+  const confirmPending = useCallback(() => {
+    const action = pending
+    setPending(undefined)
+    if (action === undefined) return
+    setToolbar(null)
+    if (action.kind === 'open') {
+      landOn(action.path)
+      return
+    }
+    setUi(current => {
+      const next = { ...current }
+      delete next.openPath
+      return next
+    })
+  }, [landOn, pending])
 
   const referenceFile = useCallback((path: string, isDir: boolean) => {
     referenceInChat(ctx, scope.sessionId, path, isDir)
   }, [ctx, scope.sessionId])
 
   const mutate = useCallback(() => { setRefreshTick(tick => tick + 1) }, [])
+
+  /** Open the host's own Browser tab (desktop profile only; absent on web). */
+  const openBrowser = useCallback(() => {
+    let controller: BrowserOpener | undefined
+    try {
+      controller = ctx.get('sidebarRight') as unknown as BrowserOpener | undefined
+    } catch {
+      controller = undefined
+    }
+    if (controller === undefined) {
+      setBrowserError('当前部署没有提供浏览器页签（browser kind 仅在 desktop profile 挂载）。')
+      return
+    }
+    try {
+      controller.openTab('browser', { params: {} })
+      setBrowserError(null)
+    } catch (cause) {
+      setBrowserError(`打开浏览器失败：${cause instanceof Error ? cause.message : String(cause)}`)
+    }
+  }, [ctx])
+
+  const onToolbarState = useCallback((state: EditorToolbarState | null) => { setToolbar(state) }, [])
+  const onToolbarControls = useCallback((controls: EditorToolbarControls | null) => {
+    controlsRef.current = controls
+  }, [])
 
   const widthFromClientX = useCallback((clientX: number): number => {
     const rect = rootRef.current?.getBoundingClientRect()
@@ -177,6 +252,12 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
   const tasksOpen = isOpen('tasks')
   const gitOpen = isOpen('git')
 
+  const saveLabel = toolbar?.saveState === 'saving'
+    ? '保存中…'
+    : toolbar?.saveState === 'failed'
+      ? '保存失败'
+      : toolbar?.dirty === true ? '保存' : '已保存'
+
   return (
     <div className={css.workbench} ref={rootRef}>
       <div className={css.left} style={{ width: `${ui.leftWidth}px` }}>
@@ -195,7 +276,7 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
             onResetTarget={() => { setCreateDir(undefined) }}
             expanded={ui.expanded}
             onToggleDir={toggleDir}
-            onOpenFile={openFile}
+            onOpenFile={requestOpen}
             onReferenceFile={referenceFile}
             refreshTick={refreshTick}
             onMutated={mutate}
@@ -213,7 +294,7 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
             scope={scope}
             visible={visible && inspirationOpen}
             cwd={root}
-            onOpenFile={openFile}
+            onOpenFile={requestOpen}
             refreshTick={refreshTick}
           />
         </Section>
@@ -233,7 +314,7 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
           open={gitOpen}
           onToggle={() => { toggleSection('git') }}
         >
-          <GitSection ctx={ctx} store={store} scope={scope} visible={visible && gitOpen} onOpenFile={openFile} />
+          <GitSection ctx={ctx} store={store} scope={scope} visible={visible && gitOpen} onOpenFile={requestOpen} />
         </Section>
       </div>
 
@@ -252,24 +333,74 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
       />
 
       <div className={css.right}>
+        <div className={css.editorHead}>
+          <span className={css.fileName} title={ui.openPath ?? ''}>
+            {ui.openPath === undefined ? '工作台' : baseName(ui.openPath)}
+          </span>
+          {toolbar?.dirty === true ? <span className={css.dirtyDot} title="有未保存的修改">●</span> : null}
+          <span className={css.headSpacer} />
+          {toolbar?.modes === true && toolbar.mode === 'edit'
+            ? <button type="button" className={css.headButton} onClick={() => { controlsRef.current?.setMode('preview') }}>预览</button>
+            : null}
+          {toolbar?.modes === true && toolbar.mode === 'preview'
+            ? <button type="button" className={css.headButton} onClick={() => { controlsRef.current?.setMode('edit') }}>编辑</button>
+            : null}
+          {toolbar?.editable === true
+            ? (
+                <button
+                  type="button"
+                  className={css.headButton}
+                  disabled={toolbar.saveState === 'saving'}
+                  title="保存 (Ctrl/Cmd+S)"
+                  onClick={() => { controlsRef.current?.save() }}
+                >{saveLabel}</button>
+              )
+            : null}
+          <button type="button" className={css.iconButton} title="新建浏览器标签" onClick={openBrowser}>
+            <VscGlobe size={15} />
+          </button>
+          {ui.openPath !== undefined
+            ? <button type="button" className={css.iconButton} title="关闭文件" onClick={requestClose}>×</button>
+            : null}
+        </div>
+        {browserError !== null ? (
+          <div className={css.error}>
+            {browserError}
+            <button type="button" className={css.linkButton} onClick={() => { setBrowserError(null) }}>知道了</button>
+          </div>
+        ) : null}
         {ui.openPath === undefined
           ? (
               <div className={css.rightBody}>
                 <div className={css.rightEmpty}>
-                  内容区<br />选择文件后在此打开
+                  内容区<br />从左侧选择文件开始编辑
                 </div>
               </div>
             )
           : (
-              <FilePane
+              <EditorPane
+                key={ui.openPath}
                 ctx={ctx}
+                store={store}
                 scope={scope}
                 visible={visible}
                 path={ui.openPath}
-                onClose={closeFile}
+                onToolbarState={onToolbarState}
+                onToolbarControls={onToolbarControls}
               />
             )}
       </div>
+
+      <ConfirmDialog
+        open={pending !== undefined}
+        title="有未保存的修改"
+        description="当前文件还有未保存的修改，继续会丢弃它们。"
+        confirmLabel="丢弃并继续"
+        cancelLabel="取消"
+        danger
+        onConfirm={confirmPending}
+        onClose={() => { setPending(undefined) }}
+      />
     </div>
   )
 }

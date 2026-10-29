@@ -307,6 +307,68 @@
   background: var(--dsw-alias-bg-layer-1);
 }
 
+/* The workbench's own merged header: stable across files, never overlaying
+ * the editor (it is a flex sibling, not an absolute layer). */
+.editorHead {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 32px;
+  padding: 0 6px 0 10px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.headSpacer {
+  flex: 1 1 auto;
+  min-width: 4px;
+}
+
+.headButton {
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.headButton:hover:not(:disabled) {
+  color: var(--dsw-alias-label-primary);
+  border-color: var(--dsw-alias-border-l2);
+}
+
+.headButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.dirtyDot {
+  flex: 0 0 auto;
+  font-size: 9px;
+  color: var(--dsw-alias-brand-primary);
+}
+
+.editorHost {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.editorHost > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .rightBody {
   flex: 1 1 auto;
   min-height: 0;
