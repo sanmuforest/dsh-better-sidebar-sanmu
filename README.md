@@ -18,6 +18,24 @@ dsh plugin --profile <profile> add file:F:\path\to\dsh-better-sidebar-sanmu-0.1.
 
 Restart Desktop (or hard-refresh the page) afterwards. Requires DSH **0.2.1-rc.1+** (`engines.dsh: >=0.2.1-rc.1 <0.3.0`).
 
+### Check the CLI version first
+
+`dsh plugin add` judges the plugin against the version of **the CLI that runs the install**, not against the running app. The global `npm i -g @deepseek-ai/dsh` copy often lags several releases behind the Desktop app, and an older CLI refuses the install outright:
+
+```
+dsh: installation rejected: Plugin dsh-better-sidebar-sanmu@… is incompatible with dsh 0.2.0-rc.2 …
+dsh: restored package.json, pnpm-lock.yaml, and node_modules.
+```
+
+The plugin then shows up as "disabled" in the UI even though nothing was ever mounted. Check and upgrade:
+
+```powershell
+dsh --version                     # must be >= 0.2.1-rc.1
+npm i -g @deepseek-ai/dsh@0.2.1-rc.5
+```
+
+Or install through the Desktop app's own plugin manager, which uses the app's bundled host. `scripts/install.ps1` / `scripts/install.sh` run this check up front and stop before touching the profile.
+
 > This package and `dsh-better-sidebar` are two names for the same code: install **only one**. The `cordis.patch.yml` guard backs this row off when another copy is enabled, but uninstalling the old package is recommended.
 
 ## Features
