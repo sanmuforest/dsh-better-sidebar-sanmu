@@ -18,6 +18,32 @@ dsh plugin --profile <profile> add file:F:\path\to\dsh-better-sidebar-sanmu-0.1.
 
 Restart Desktop (or hard-refresh the page) afterwards. Requires DSH **0.2.1-rc.1+** (`engines.dsh: >=0.2.1-rc.1 <0.3.0`).
 
+### Check the CLI version first
+
+`dsh plugin add` judges the plugin against the version of **the CLI that runs the install**, not against the running app. The global `npm i -g @deepseek-ai/dsh` copy often lags several releases behind the Desktop app, and an older CLI refuses the install outright:
+
+```
+dsh: installation rejected: Plugin dsh-better-sidebar-sanmu@… is incompatible with dsh 0.2.0-rc.2 …
+dsh: restored package.json, pnpm-lock.yaml, and node_modules.
+```
+
+The plugin then shows up as "disabled" in the UI even though nothing was ever mounted. Check and upgrade:
+
+```powershell
+dsh --version                     # must be >= 0.2.1-rc.1
+npm i -g @deepseek-ai/dsh@0.2.1-rc.5
+```
+
+Or install through the Desktop app's own plugin manager, which uses the app's bundled host. `scripts/install.ps1` / `scripts/install.sh` run this check up front and stop before touching the profile.
+
+#### The `desktop` profile is CLI-unwritable
+
+```
+error: profile "desktop" is managed exclusively by the Electron application
+```
+
+Same on `0.2.0-rc.2` and `0.2.1-rc.5`: the desktop application owns that profile, so `dsh plugin` only writes `web` and custom profiles. Use the in-app plugin manager for Desktop. This package is not published to npm yet (`npm view dsh-better-sidebar-sanmu` returns 404), so the only Desktop route today is mounting the local tarball by hand: add it to `dependencies` and `dsh.profile.bundles` in `~/.dsh/profiles/<profile>/package.json`, then `pnpm install` in that directory. **Write that manifest as BOM-free UTF-8** — `ConvertTo-Json | Set-Content -Encoding UTF8` in Windows PowerShell adds a BOM, and the host then dies in `readProfileManifest` (`Unexpected token '锘?`) before any plugin loads.
+
 > This package and `dsh-better-sidebar` are two names for the same code: install **only one**. The `cordis.patch.yml` guard backs this row off when another copy is enabled, but uninstalling the old package is recommended.
 
 ## Features

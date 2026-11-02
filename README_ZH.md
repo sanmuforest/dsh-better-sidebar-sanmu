@@ -18,6 +18,32 @@ dsh plugin --profile <profile> add file:F:\path\to\dsh-better-sidebar-sanmu-0.1.
 
 装完重启 Desktop（或硬刷新页面）。要求 DSH **0.2.1-rc.1+**（`engines.dsh: >=0.2.1-rc.1 <0.3.0`）。
 
+### 装之前先看一眼 CLI 版本
+
+`dsh plugin add` 判定兼容性用的是**执行安装的那份 CLI 的版本**，不是正在运行的应用版本。npm 全局那份（`npm i -g @deepseek-ai/dsh`）经常落后桌面 App 好几个版本，太旧会直接拒装：
+
+```
+dsh: installation rejected: Plugin dsh-better-sidebar-sanmu@… is incompatible with dsh 0.2.0-rc.2 …
+dsh: restored package.json, pnpm-lock.yaml, and node_modules.
+```
+
+于是插件在界面上表现为「报异常、被停用」，其实一次都没挂载过。先查再升：
+
+```powershell
+dsh --version                     # 必须 >= 0.2.1-rc.1
+npm i -g @deepseek-ai/dsh@0.2.1-rc.5
+```
+
+或者直接用桌面 App 自带的插件管理器装（它用的是 App 自己的宿主版本）。`scripts/install.ps1` / `scripts/install.sh` 已把这一步前置，会在改动 profile 之前中止并给出升级命令。
+
+#### `desktop` profile 不能走 CLI
+
+```
+error: profile "desktop" is managed exclusively by the Electron application
+```
+
+这条在 `0.2.0-rc.2` 与 `0.2.1-rc.5` 上行为一致：桌面应用独占 `desktop` profile，CLI 只装得进 `web` 与自建 profile。桌面端请用应用内的插件管理器。本包尚未发布到 npm（`npm view dsh-better-sidebar-sanmu` 仍是 404），所以现在只能把本地 tarball 手工挂进清单：改 `~/.dsh/profiles/<profile>/package.json` 的 `dependencies` 与 `dsh.profile.bundles`，再在该目录 `pnpm install`。**一定要写成 UTF-8 无 BOM 的 JSON** —— 用 PowerShell 的 `ConvertTo-Json | Set-Content -Encoding UTF8` 会带 BOM，宿主启动时 `readProfileManifest` 直接崩（`Unexpected token '锘?`），整个 App 起不来。
+
 > 本包与 `dsh-better-sidebar` 是同一份代码的两个包名：**二者只能装一个**。`cordis.patch.yml` 里的守卫会在检测到另一份已启用时自动退让，但推荐直接卸载旧包，避免 node_modules 里留两份。
 
 ## 功能

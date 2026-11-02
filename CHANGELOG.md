@@ -2,6 +2,14 @@
 
 > 本文档收录 dsh-better-sidebar 的完整发布历史（最新版摘要见 [README](README_ZH.md)；同步发布于 [GitHub Releases](https://github.com/omdsh-dev/DSH-better-sidebar/releases)）。
 
+### 未发布（fork：安装链路）
+
+- 🐞 **安装脚本装错了包**：`scripts/install.ps1` 与 `scripts/install.sh` 是从上游整份继承的，`$PKG` 仍写着上游的 `dsh-better-sidebar`——跑本仓库的安装脚本会把**上游包**装进 profile（双挂载或装了另一份代码）。现在两处均改为 `dsh-better-sidebar-sanmu`，`minimumReleaseAgeExclude`、bundle 校验与回滚提示同步换成新包名；`tests/install-powershell.spec.ts` 新增「装的是 fork 包名」用例钉住。
+- 🛡 **安装前校验 `dsh` CLI 版本**：宿主的 `plugin add` 拿**执行安装的那份 CLI 的版本**去比对插件 peer 下限，太旧就整批拒绝并回滚（`installation rejected: Plugin … is incompatible with dsh 0.2.0-rc.2`），而 npm 全局那份 CLI 经常落后于桌面 App，用户在界面上看到的是「插件报异常、被停用」。现在两个安装脚本在改动 profile **之前**探测 `dsh --version`，低于 `0.2.1-rc.1`（= 13 条 peer 下限）就打印升级命令并中止；安装被宿主拒绝时也会识别该输出并给出同一条指引。探测不到（走 npx 兜底、自定义 `DSH_CMD`）时放行，不阻断。
+- 🧷 **npx 兜底版本改为常量**：`@deepseek-ai/dsh@0.2.1-rc.1` 硬编码了四处，改为 `$DSH_BASELINE` / `$DSH_NPX_SPEC`（bash 侧 `DSH_BASELINE` / `DSH_NPX_SPEC`）两个常量并与 `package.json#engines.dsh` 标注同源，抬基线时一处改动。
+- 🧹 **安装脚本写临时文件不再带 BOM**：`Set-Content -Encoding UTF8` 在 Windows PowerShell 5.1 下会写 BOM，改成 `[IO.File]::WriteAllText(..., UTF8Encoding($false))`。`install.ps1` **自身**仍保留 BOM——那是 PS 5.1 `-File` 正确解码中文的前提，`tests/install-powershell.spec.ts` 钉住。
+- 📖 README 中英双份新增「装之前先看一眼 CLI 版本」：贴出宿主拒装原文、`dsh --version` 的判定线与升级命令，并说明桌面 App 自带插件管理器走的是 App 自己的宿主版本。
+
 ### v0.28.2
 
 - 🛡 **冷会话（detached）的 cwd 改读工作区地址，不再整份解码会话日志**：`sessionQuery.observeSession(..., { projectionMode: 'all' })` 为拿一个 `workingDirectory` 要解码整份 zstd 日志并水合全部投影；而启动期真正并发的是 **fs-watch 每监视目录一帧**、`/sidebar/file|html` 每资源一次、`/sidebar/upload|write` 每次一次——它们都绕过 0.28.1 只覆盖 `/sidebar/api` 的 `cwdOf()` 单飞，所以 39 MB 级会话在 130–180 ms 里被并发整读数十次（0.28.0 的 44 次 OOM、0.28.1 的 36 次是同一路径，不是「去重失效」）。现在 detached 会话的 cwd 走 `sessionPersistence.stat` 的 **header-only** 读（只读第一个 zstd 帧）+ 进程内 memo/在飞去重，`activeWorktreeRootOf` 对 detached 会话直接返回该地址；宿主 attach 后仍跟随 `working_directory` 与 linked worktree。
