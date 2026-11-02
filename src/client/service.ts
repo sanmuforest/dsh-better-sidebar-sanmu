@@ -833,10 +833,24 @@ export function matchUrlTarget(tabs: readonly TabDescriptor[], url: URL): TabDes
 }
 
 /**
- * The plugin version this service instance reports. Keep in lockstep with
- * `package.json`'s version — `tests/service.spec.ts` asserts the pair.
+ * The upstream API generation this fork tracks (the `dsh-better-sidebar`
+ * release the code was forked from).
+ *
+ * `service.version` reports THIS, not the fork's own `package.json` version.
+ * Consumers (dsh-mindmap and friends) gate `version >= 0.2x` against upstream
+ * releases; this fork's own `0.1.x` numbering would read as far older than any
+ * upstream build and make them switch features off that are actually present.
+ * The two numbers therefore move independently: bump this when the fork
+ * rebases onto a newer upstream, and `package.json` when the fork ships.
  */
-export const SIDEBAR_SERVICE_VERSION = '0.28.2'
+export const UPSTREAM_API_BASELINE = '0.28.2'
+
+/**
+ * The plugin version this service instance reports (see
+ * `UPSTREAM_API_BASELINE` for why it is not the package version).
+ * `tests/service.spec.ts` pins the pair.
+ */
+export const SIDEBAR_SERVICE_VERSION = UPSTREAM_API_BASELINE
 
 /**
  * Monotonic capability list consumers use to gate new API usage (features
