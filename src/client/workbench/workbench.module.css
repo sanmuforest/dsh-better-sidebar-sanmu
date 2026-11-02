@@ -24,7 +24,11 @@
   flex: 0 0 auto;
   overflow-x: hidden;
   overflow-y: auto;
-  background: var(--dsw-specific-sidebar-fill);
+  /* The generic card surface, NOT `--dsw-specific-sidebar-fill`: skin systems
+     override that token to restyle the app's own left-nav column (glass,
+     transparent, theme colours), and a panel consuming it would lose its fill or
+     clash with the label tokens. See src/client/sidebar.module.css §Shell. */
+  background: var(--dsw-alias-bg-layer-1);
   /* The SPLITTER owns the boundary line. A border here would stack up with the
      rail's scrollbar and the splitter's own line into three adjacent bars. */
   scrollbar-width: thin;
