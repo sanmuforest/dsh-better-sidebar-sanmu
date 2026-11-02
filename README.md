@@ -36,6 +36,14 @@ npm i -g @deepseek-ai/dsh@0.2.1-rc.5
 
 Or install through the Desktop app's own plugin manager, which uses the app's bundled host. `scripts/install.ps1` / `scripts/install.sh` run this check up front and stop before touching the profile.
 
+#### The `desktop` profile is CLI-unwritable
+
+```
+error: profile "desktop" is managed exclusively by the Electron application
+```
+
+Same on `0.2.0-rc.2` and `0.2.1-rc.5`: the desktop application owns that profile, so `dsh plugin` only writes `web` and custom profiles. Use the in-app plugin manager for Desktop. This package is not published to npm yet (`npm view dsh-better-sidebar-sanmu` returns 404), so the only Desktop route today is mounting the local tarball by hand: add it to `dependencies` and `dsh.profile.bundles` in `~/.dsh/profiles/<profile>/package.json`, then `pnpm install` in that directory. **Write that manifest as BOM-free UTF-8** — `ConvertTo-Json | Set-Content -Encoding UTF8` in Windows PowerShell adds a BOM, and the host then dies in `readProfileManifest` (`Unexpected token '锘?`) before any plugin loads.
+
 > This package and `dsh-better-sidebar` are two names for the same code: install **only one**. The `cordis.patch.yml` guard backs this row off when another copy is enabled, but uninstalling the old package is recommended.
 
 ## Features
