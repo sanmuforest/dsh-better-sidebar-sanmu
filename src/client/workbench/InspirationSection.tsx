@@ -14,6 +14,7 @@ import type { Context } from '../../context-types.ts'
 import { api } from '../api.ts'
 import { FileTree } from '../FileTree.tsx'
 import { createOpenInApp } from '../open-in-app.ts'
+import { t } from '../locales.ts'
 import type { BetterSidebarService, TabComponentProps } from '../service.ts'
 import type { UploadItem } from '../upload.ts'
 import css from './workbench.module.css'
@@ -175,22 +176,22 @@ export function InspirationSection(props: InspirationSectionProps): ReactNode {
         <button
           type="button"
           className={css.toolButton}
-          title="新建灵感"
+          title={t('wbNewNoteTitle')}
           onClick={() => { setCreating(true); setDraftName('') }}
-        >+ 新建灵感</button>
+        >{t('wbNewNote')}</button>
         <button
           type="button"
           className={css.toolButton}
-          title="刷新"
+          title={t('refresh')}
           onClick={() => { setLocalTick(tick => tick + 1) }}
-        >刷新</button>
+        >{t('refresh')}</button>
       </div>
       {creating ? (
         <div className={css.createRow}>
           <input
             autoFocus
             className={css.createInput}
-            placeholder="灵感名称（可留空自动命名）"
+            placeholder={t('wbNoteNamePlaceholder')}
             value={draftName}
             onChange={event => { setDraftName(event.target.value) }}
             onKeyDown={event => {
@@ -203,12 +204,12 @@ export function InspirationSection(props: InspirationSectionProps): ReactNode {
       {error !== null ? <div className={css.error}>{error}</div> : null}
       {rootEmpty && creating === false ? (
         <div className={css.empty}>
-          还没有灵感。<br />点「+ 新建灵感」创建第一个 .md，文件落在 <code>{INSPIRATION_DIR_NAME}/</code>。
+          {t('wbNotesEmpty', { dir: `${INSPIRATION_DIR_NAME}/` })}
         </div>
       ) : null}
       <div className={css.treeHost}>
         {dir === undefined
-          ? <div className={css.empty}>工作区尚未就绪</div>
+          ? <div className={css.empty}>{t('wbWorkspaceNotReady')}</div>
           : (
               <FileTree
                 sessionId={scope.sessionId}

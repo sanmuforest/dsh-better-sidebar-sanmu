@@ -24,6 +24,12 @@ export const LEFT_MIN = 160
 export const LEFT_DEFAULT = 240
 /** Keep at least this much room for the content area when dragging. */
 export const RIGHT_MIN = 180
+/**
+ * Write coalescing window for the layout document. A splitter drag mutates the
+ * rail width on every pointer move; serialising the document per frame is pure
+ * jank, and the value only has to survive a reload.
+ */
+export const PERSIST_DEBOUNCE_MS = 200
 
 export const DEFAULT_STATE: WorkbenchPersisted = {
   leftWidth: LEFT_DEFAULT,

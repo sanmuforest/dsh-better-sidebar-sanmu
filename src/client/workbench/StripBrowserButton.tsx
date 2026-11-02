@@ -11,6 +11,7 @@
 import { useCallback, useState, type ReactNode } from 'react'
 import { VscGlobe } from 'react-icons/vsc'
 import type { Context } from '../../context-types.ts'
+import { t } from '../locales.ts'
 import css from './workbench.module.css'
 
 /** The host right-Sidebar controller slice this button needs. */
@@ -39,14 +40,14 @@ export function StripBrowserButton(props: { ctx: Context }): ReactNode {
       controller = undefined
     }
     if (controller === undefined) {
-      setError('当前部署没有浏览器页签（browser kind 仅在 desktop profile 挂载）')
+      setError(t('wbNoBrowser'))
       return
     }
     try {
       controller.openTab('browser', { params: {} })
       setError(null)
     } catch (cause) {
-      setError(`打开浏览器失败：${cause instanceof Error ? cause.message : String(cause)}`)
+      setError(t('wbBrowserFailed', { message: cause instanceof Error ? cause.message : String(cause) }))
     }
   }, [ctx])
 
@@ -57,8 +58,8 @@ export function StripBrowserButton(props: { ctx: Context }): ReactNode {
       role="button"
       tabIndex={0}
       className={css.chipAction}
-      title={error ?? '新建浏览器标签'}
-      aria-label="新建浏览器标签"
+      title={error ?? t('wbBrowserNew')}
+      aria-label={t('wbBrowserNew')}
       onClick={open}
       onPointerDown={(event) => { event.stopPropagation() }}
       onKeyDown={(event) => {
