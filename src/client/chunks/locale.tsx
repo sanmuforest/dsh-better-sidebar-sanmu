@@ -30,10 +30,19 @@ import { zhTW } from '../locales-zh-TW.ts'
 import { zhMO } from '../locales-zh-MO.ts'
 import type { CopyKey } from '../locales.ts'
 
-/** Key-set check against zh (type-only import — erased before bundling, so
- *  this adds no runtime tie to the core bundle): a dictionary missing or
- *  adding a key fails the build instead of silently falling back to en. */
-const checked = (dict: Record<CopyKey, string>): Record<string, string> => dict
+/**
+ * Key validity check against zh (type-only import — erased before bundling, so
+ * this adds no runtime tie to the core bundle): a dictionary can only carry
+ * keys that exist in zh, so a renamed or removed key cannot linger here.
+ *
+ * Deliberately partial: a translation may lag a new zh key and the runtime
+ * falls back to en for it (the override store returns undefined). Requiring
+ * full parity from all 19 dictionaries here would force every new UI string
+ * into 17 machine translations before the feature can ship; `ja` is the
+ * documented companion (AGENTS §5) and `tests/locales.spec.ts` holds it to full
+ * parity instead.
+ */
+const checked = (dict: Partial<Record<CopyKey, string>>): Record<string, string> => dict
 
 /** Every non-zh/en dictionary keyed by its override id, ready for the
  *  better-locale store's `register(ns, dicts)`. */

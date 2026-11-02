@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Context } from '../../context-types.ts'
 import { api, type FsReadResult } from '../api.ts'
 import { baseName } from '../FileTree.tsx'
+import { t } from '../locales.ts'
 import { TextEditor } from '../TextEditor.tsx'
 import type {
   EditorToolbarControls,
@@ -63,23 +64,23 @@ export function EditorPane(props: EditorPaneProps): ReactNode {
     return () => { controller.abort() }
   }, [path, scope.sessionId, scope.cwd, attempt, onToolbarState])
 
-  if (load.status === 'loading') return <div className={css.empty}>读取中…</div>
+  if (load.status === 'loading') return <div className={css.empty}>{t('wbLoading')}</div>
   if (load.status === 'error') {
     return (
       <div className={css.error}>
-        无法读取 {path}
+        {t('wbReadFailed', { path })}
         <br />
         {load.message}
         <br />
-        <button type="button" className={css.toolButton} onClick={reload}>重新读取</button>
+        <button type="button" className={css.toolButton} onClick={reload}>{t('wbReload')}</button>
       </div>
     )
   }
   if (load.result.kind === 'binary') {
-    return <div className={css.empty}>二进制文件（{formatBytes(load.result.size)}），暂不支持在工作台内编辑。</div>
+    return <div className={css.empty}>{t('wbBinary', { size: formatBytes(load.result.size) })}</div>
   }
   if (load.result.kind === 'too-large') {
-    return <div className={css.empty}>文件过大（{formatBytes(load.result.size)}），暂不支持在工作台内打开。</div>
+    return <div className={css.empty}>{t('wbTooLarge', { size: formatBytes(load.result.size) })}</div>
   }
 
   return (

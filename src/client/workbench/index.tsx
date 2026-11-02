@@ -9,7 +9,7 @@
  * and a one-line description for DSH's new-tab guide.
  */
 import type { ReactNode } from 'react'
-import { isZh } from '../locales.ts'
+import { t } from '../locales.ts'
 import { IconPanelBottomOutline16 } from '../icons.tsx'
 import type { TabDescriptor } from '../service.ts'
 import { WORKBENCH_TAB_ID } from './constants.ts'
@@ -21,10 +21,8 @@ export { WORKBENCH_TAB_ID }
 export function workbenchTab(): TabDescriptor {
   return {
     id: WORKBENCH_TAB_ID,
-    title: () => (isZh() ? '工作台' : 'Workbench'),
-    description: () => (isZh()
-      ? '文件、灵感、任务与 Git 四栏，右侧固定编辑区'
-      : 'Files, inspiration, tasks and Git on the left, editor on the right'),
+    title: () => t('wbTitle'),
+    description: () => t('wbTitleDesc'),
     icon: (size: number): ReactNode => <IconPanelBottomOutline16 size={size} />,
     // Sit next to the built-in pages (files = 10, git = 20, tasks = 30) so the
     // workbench is easy to find in the + menu without displacing them.
