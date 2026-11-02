@@ -1,8 +1,8 @@
 ﻿## =============================================================================
-# dsh-better-sidebar 一键安装脚本（官方 CLI 方式，Windows PowerShell 5.1+ / pwsh）
+# dsh-better-sidebar-sanmu 一键安装脚本（官方 CLI 方式，Windows PowerShell 5.1+ / pwsh）
 #
 # 通过 DSH 官方插件命令安装 npm 包并自动挂载：
-#   dsh plugin --profile web add dsh-better-sidebar@<version>
+#   dsh plugin --profile <profile> add dsh-better-sidebar-sanmu@<version>
 #
 # 包内声明了 dsh.bundle.patch（cordis.patch.yml）：CLI 的 bundle 协调会把它
 # 自动加进 profile 的 dsh.profile.bundles，下次启动即挂载——无需手动写
@@ -11,13 +11,13 @@
 #
 # 用法（任选其一）：
 #   # 默认最新版
-#   $script = (irm 'https://raw.githubusercontent.com/omdsh-dev/DSH-better-sidebar/main/scripts/install.ps1').TrimStart([char]0xFEFF)
+#   $script = (irm 'https://raw.githubusercontent.com/sanmuforest/dsh-better-sidebar-sanmu/main/scripts/install.ps1').TrimStart([char]0xFEFF)
 #   & ([scriptblock]::Create($script))
 #   # 指定版本 / 装完重启
-#   $script = (irm 'https://raw.githubusercontent.com/omdsh-dev/DSH-better-sidebar/main/scripts/install.ps1').TrimStart([char]0xFEFF)
-#   & ([scriptblock]::Create($script)) -Version 0.10.2 -Restart
+#   $script = (irm 'https://raw.githubusercontent.com/sanmuforest/dsh-better-sidebar-sanmu/main/scripts/install.ps1').TrimStart([char]0xFEFF)
+#   & ([scriptblock]::Create($script)) -Version 0.1.1 -Restart
 #   # 本地保存后运行
-#   powershell -ExecutionPolicy Bypass -File install.ps1 -Version 0.10.2 -DryRun
+#   powershell -ExecutionPolicy Bypass -File install.ps1 -Version 0.1.1 -DryRun
 #
 # 参数：
 #   -Version    npm 版本号/范围，缺省 latest（自动解析为最新）。
@@ -28,13 +28,17 @@
 # 环境变量（均可省略）：
 #   DSH_HOME    默认 %USERPROFILE%\.dsh
 #   REGISTRY    默认 https://registry.npmjs.org
-#   DSH_CMD     默认优先 PATH 上的 dsh，缺省回退 npx -y --package @deepseek-ai/dsh@0.2.1-rc.1
+#   DSH_CMD     默认优先 PATH 上的 dsh，缺省回退 npx -y --package @deepseek-ai/dsh@<见 $DSH_NPX_SPEC>
 #
 # 说明：
+# - **安装前会校验 dsh CLI 版本**：低于 $DSH_BASELINE 时直接中止并给出升级命令。
+#   宿主的安装器拿「执行安装的那份 CLI 版本」比对插件 peer 下限，太旧就整批拒绝并
+#   回滚，界面上表现为「插件报异常、被停用」。npm 全局那份 CLI 常落后于桌面 App，
+#   所以这一步必须前置，不能等宿主来报错。
 # - pnpm 11 的 minimumReleaseAge 会拒绝发布 <24h 的新版本。脚本会预写
 #   minimumReleaseAgeExclude（幂等），放行本插件，避免"重跑一次才成功"。
 # - 老版本（<0.10.2）用手动挂载行，bundle 通道激活后需移除，否则双挂载。
-#   脚本会幂等移除 better-sidebar 挂载行。
+#   脚本会幂等移除本插件的挂载行。
 # =============================================================================
 param(
   [string]$Version = '',
@@ -43,8 +47,19 @@ param(
   [string]$Profile = 'web'
 )
 
-$PKG = 'dsh-better-sidebar'
+$PKG = 'dsh-better-sidebar-sanmu'
 $REGISTRY = if ($env:REGISTRY) { $env:REGISTRY } else { 'https://registry.npmjs.org' }
+
+# 本插件要求的最低宿主版本。与 package.json 的 engines.dsh 下限、13 条
+# @deepseek-ai/dsh-* peer 下限同源；抬基线时这三处必须一起改。
+# 为什么要在装之前自己判一次：宿主的安装器拿「执行安装的那份 dsh CLI 的版本」
+# 去比对插件的 peer 区间，低于下限就整批拒绝并回滚（原文：
+# "installation rejected: Plugin … is incompatible with dsh 0.2.0-rc.2"）。
+# 而 npm 全局那份 CLI 经常落后于桌面 App（本机实测：App 0.2.1-rc.5，CLI 0.2.0-rc.2），
+# 于是用户看到的是"插件报异常、被停用"，其实是安装被拒。
+$DSH_BASELINE = '0.2.1-rc.1'
+# npx 兜底拉取的 CLI。npm 上的 latest 目前是 0.2.1-rc.5；抬基线时同步这一处。
+$DSH_NPX_SPEC = '0.2.1-rc.5'
 
 # DSH_HOME：DSH_HOME 环境变量 > %USERPROFILE% > $HOME
 if ($env:DSH_HOME) {
@@ -81,6 +96,55 @@ function Resolve-Spec {
   return $Given
 }
 
+# 把 "0.2.1-rc.5" 解析成可逐项比较的键；无法解析返回 $null。
+# 只覆盖本仓库需要的形状：X.Y.Z、X.Y.Z-<alpha|beta|rc>.N（含无预发布后缀）。
+function ConvertTo-VersionKey {
+  param([string]$Text)
+  $t = ([string]$Text).Trim().TrimStart('v')
+  $m = [regex]::Match($t, '^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z]+)\.(\d+))?')
+  if (-not $m.Success) { return $null }
+  $stage = 9
+  $pre = 0
+  if ($m.Groups[4].Success) {
+    switch ($m.Groups[4].Value.ToLowerInvariant()) {
+      'alpha' { $stage = 0 }
+      'beta' { $stage = 1 }
+      'rc' { $stage = 2 }
+      default { $stage = 1 }
+    }
+    $pre = [int]$m.Groups[5].Value
+  }
+  return @([int]$m.Groups[1].Value, [int]$m.Groups[2].Value, [int]$m.Groups[3].Value, $stage, $pre)
+}
+
+# CLI 版本低于基线时直接给出可操作的提示，而不是让宿主抛一段英文 peer 列表。
+# 探测不到（DSH_CMD 是自定义命令、走 npx 兜底、或 --version 不可用）就放行：
+# 此时真正安装的 CLI 由 npx 指定，本脚本无从判断。
+function Assert-DshCliVersion {
+  param([string]$Cli)
+  if ($Cli -ne 'dsh') { return }
+  $raw = (& dsh --version 2>$null | Select-Object -Last 1)
+  if ($LASTEXITCODE -ne 0 -or -not $raw) { return }
+  $actual = ([string]$raw).Trim()
+  $actualKey = ConvertTo-VersionKey $actual
+  $minKey = ConvertTo-VersionKey $DSH_BASELINE
+  if ($actualKey -eq $null -or $minKey -eq $null) {
+    Warn "无法解析 dsh CLI 版本（输出：$actual），跳过版本校验。"
+    return
+  }
+  for ($i = 0; $i -lt 5; $i++) {
+    if ($actualKey[$i] -gt $minKey[$i]) { return }
+    if ($actualKey[$i] -lt $minKey[$i]) {
+      Warn "本机 dsh CLI 版本为 $actual，低于本插件要求的最低版本 $DSH_BASELINE。"
+      Warn '宿主的安装器会以「incompatible with dsh …」拒绝安装并回滚，界面上则表现为插件报异常、被停用。'
+      Warn "请先升级 CLI 后重试（npm 上当前 latest 为 $DSH_NPX_SPEC）："
+      Warn "  npm i -g @deepseek-ai/dsh@$DSH_NPX_SPEC"
+      Warn '或改用桌面 App 自带的插件管理器安装（它用的是 App 自己的宿主版本）。'
+      Die "dsh CLI 太旧（$actual < $DSH_BASELINE），已在改动 profile 之前中止。"
+    }
+  }
+}
+
 # 组装 dsh CLI：优先 PATH 上的 dsh，缺省 npx 拉官方包
 function Get-DshCli {
   if ($env:DSH_CMD) { return $env:DSH_CMD }
@@ -95,13 +159,15 @@ function Ensure-WorkspaceSettings {
   $wsScript = @'
 const fs = require("fs");
 const p = process.argv[2];
+const pkg = process.argv[3];
 let t = fs.readFileSync(p, "utf8");
 const before = t;
-if (!/^\s*-\s+dsh-better-sidebar\s*$/m.test(t)) {
+const entry = new RegExp("^\\s*-\\s+" + pkg + "\\s*$", "m");
+if (!entry.test(t)) {
   if (/^\s*minimumReleaseAgeExclude:\s*$/m.test(t)) {
-    t = t.replace(/^(\s*minimumReleaseAgeExclude:\s*)$/m, "$1\n  - dsh-better-sidebar");
+    t = t.replace(/^(\s*minimumReleaseAgeExclude:\s*)$/m, "$1\n  - " + pkg);
   } else {
-    t += "\nminimumReleaseAgeExclude:\n  - dsh-better-sidebar\n";
+    t += "\nminimumReleaseAgeExclude:\n  - " + pkg + "\n";
   }
 }
 if (t !== before) fs.writeFileSync(p, t);
@@ -111,8 +177,10 @@ console.log(t === before ? "unchanged" : "updated");
   # Windows 命令行解析吞掉，导致 JS 语法错误（Expected ',', got ':'）。
   # 改用临时文件方式，兼容 PS 5.1 与 pwsh 7。
   $wsJs = Join-Path $env:TEMP ("dshbs-ws-" + [guid]::NewGuid().ToString("N") + ".js")
-  Set-Content -LiteralPath $wsJs -Value $wsScript -Encoding UTF8
-  $wsOut = node $wsJs "$WS_YML" 2>&1
+  # 显式写成无 BOM：`Set-Content -Encoding UTF8` 在 Windows PowerShell 5.1 下
+  # 会加 BOM，而 BOM 是 DSH 启动崩溃的已知来源（profile 清单被同类写法写坏过）。
+  [IO.File]::WriteAllText($wsJs, $wsScript, (New-Object Text.UTF8Encoding($false)))
+  $wsOut = node $wsJs "$WS_YML" "$PKG" 2>&1
   $wsCode = $LASTEXITCODE
   Remove-Item -LiteralPath $wsJs -Force -ErrorAction SilentlyContinue
   $wsResult = (($wsOut | Out-String)).Trim()
@@ -155,13 +223,14 @@ $CLI = Get-DshCli
 if (-not $CLI) {
   Die '未找到 dsh 或 npx。请先安装 DSH（并确保 Node/npm 可用），或用 DSH_CMD 指定。'
 }
+Assert-DshCliVersion $CLI
 Say "目标：$CLI plugin --profile $Profile add $PKG@$SPEC（profile: $PROFILE_DIR）"
 
 if ($DryRun) {
   Say "[dry-run] 步骤 1：确保 $WS_YML 含 minimumReleaseAgeExclude（$PKG）"
   Say "[dry-run] 步骤 2：执行 $CLI plugin --profile $Profile add $PKG@$SPEC（安装 + bundle 自动注册）"
   Say "[dry-run] 步骤 3：校验 dsh.profile.bundles 含 $PKG"
-  Say "[dry-run] 步骤 4：幂等移除 $PATCH_YML 里旧的 better-sidebar 手动挂载行（避免双挂载）"
+  Say "[dry-run] 步骤 4：幂等移除 $PATCH_YML 里旧的 better-sidebar 手动挂载行（上游/旧版；bundle 通道接管，避免双挂载）"
   if ($Restart) { Say '[dry-run] 步骤 5：pm2 restart dsh-web' } else { Say '[dry-run] 步骤 5：提示用户手动重启 DSH' }
   exit 0
 }
@@ -173,13 +242,23 @@ Ensure-WorkspaceSettings
 if ($CLI -eq 'dsh') {
   $cliArgs = @('plugin', '--profile', $Profile, 'add', "$PKG@$SPEC")
 } else {
-  $cliArgs = @('-y', '--package', '@deepseek-ai/dsh@0.2.1-rc.1', 'dsh', 'plugin', '--profile', $Profile, 'add', "$PKG@$SPEC")
+  $cliArgs = @('-y', '--package', "@deepseek-ai/dsh@$DSH_NPX_SPEC", 'dsh', 'plugin', '--profile', $Profile, 'add', "$PKG@$SPEC")
 }
 Say "执行 $CLI plugin --profile $Profile add $PKG@$SPEC ..."
 $addOut = & $CLI @cliArgs 2>&1
 $addCode = $LASTEXITCODE
 $addOut | ForEach-Object { $_ }
 if ($addCode -ne 0) {
+  $addText = ($addOut | Out-String)
+  $rejected = [regex]::Match($addText, 'incompatible with dsh ([0-9A-Za-z.\-]+)')
+  if ($rejected.Success) {
+    # 宿主拒绝安装：拿 CLI 自身版本比对插件 peer 下限失败，整批回滚。
+    Warn "安装被宿主拒绝：本插件要求 dsh >= $DSH_BASELINE，而执行安装的 CLI 是 $($rejected.Groups[1].Value)。"
+    Warn "请先升级 CLI（npm 上当前 latest 为 $DSH_NPX_SPEC）："
+    Warn "  npm i -g @deepseek-ai/dsh@$DSH_NPX_SPEC"
+    Warn '或改用桌面 App 自带的插件管理器安装，然后重跑本脚本。'
+    exit 1
+  }
   Warn 'dsh plugin add 失败。已预写 minimumReleaseAgeExclude，仍失败的可能原因：'
   Warn '  - 网络/登录问题：npm registry 不可达或需要登录。'
   Warn "  - 依赖安装冲突：可手动重试 cd $PROFILE_DIR; pnpm install。"
@@ -190,7 +269,7 @@ if ($addCode -ne 0) {
 $pkgJson = Get-Content -Raw (Join-Path $PROFILE_DIR 'package.json') | ConvertFrom-Json
 $bundles = $pkgJson.dsh.profile.bundles
 if ($bundles -notcontains $PKG) {
-  Warn 'dsh-better-sidebar 未出现在 dsh.profile.bundles 中——挂载未注册。'
+  Warn "$PKG 未出现在 dsh.profile.bundles 中——挂载未注册。"
   Warn "若上面的 pnpm 输出提示 ignored build scripts，请确认 $WS_YML 的 allowBuilds 后重跑本脚本（0.20.0 起本插件自身不再有构建脚本依赖）。"
   exit 1
 }
@@ -232,7 +311,7 @@ if (!removed) {
 }
 '@
 $mountJs = Join-Path $env:TEMP ("dshbs-mount-" + [guid]::NewGuid().ToString("N") + ".js")
-Set-Content -LiteralPath $mountJs -Value $mountScript -Encoding UTF8
+[IO.File]::WriteAllText($mountJs, $mountScript, (New-Object Text.UTF8Encoding($false)))
 $mountOut = node $mountJs "$PATCH_YML" 2>&1
 $mountCode = $LASTEXITCODE
 Remove-Item -LiteralPath $mountJs -Force -ErrorAction SilentlyContinue

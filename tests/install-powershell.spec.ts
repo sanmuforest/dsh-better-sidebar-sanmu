@@ -8,7 +8,7 @@ import { removeTree } from './temp-tree.ts'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const INSTALLER = resolve(ROOT, 'scripts/install.ps1')
-const INSTALLER_URL = 'https://raw.githubusercontent.com/omdsh-dev/DSH-better-sidebar/main/scripts/install.ps1'
+const INSTALLER_URL = 'https://raw.githubusercontent.com/sanmuforest/dsh-better-sidebar-sanmu/main/scripts/install.ps1'
 const tempDirs: string[] = []
 const hasPwsh = process.platform === 'win32'
   && spawnSync('pwsh', ['-NoLogo', '-NoProfile', '-Command', 'exit 0'], { stdio: 'ignore' }).status === 0
@@ -19,7 +19,16 @@ interface InstallerFixture {
   workspace: string
 }
 
-function createFixture(pnpmVersion: string): InstallerFixture {
+/**
+ * One throwaway DSH home with a `web` profile.
+ *
+ * The fixture also pins `dsh` itself: the installer now refuses to run under a
+ * CLI older than the plugin's peer floor, so a machine that happens to have a
+ * stale global `dsh` on PATH must not change what these cases assert. A fake
+ * `dsh.cmd` in the fixture bin (searched before the real PATH) makes the probe
+ * deterministic; `dshVersion: null` omits it entirely (npx fallback case).
+ */
+function createFixture(pnpmVersion: string, dshVersion: string | null = '0.2.1-rc.5'): InstallerFixture {
   const root = mkdtempSync(join(tmpdir(), 'dshbs-install-'))
   tempDirs.push(root)
   const home = join(root, 'home')
@@ -30,6 +39,7 @@ function createFixture(pnpmVersion: string): InstallerFixture {
   const workspace = 'packages:\n  - .\n'
   writeFileSync(join(profile, 'pnpm-workspace.yaml'), workspace)
   writeFileSync(join(bin, 'pnpm.cmd'), `@echo off\r\necho ${pnpmVersion}\r\n`)
+  if (dshVersion !== null) writeFileSync(join(bin, 'dsh.cmd'), `@echo off\r\necho ${dshVersion}\r\n`)
   return {
     home,
     workspace,
@@ -61,7 +71,7 @@ function assertInMemoryInvocation(executable: string): void {
   const output = `${result.stdout}\n${result.stderr}`
 
   expect(result.status, output).toBe(0)
-  expect(output).toContain('dsh-better-sidebar@0.11.0')
+  expect(output).toContain('dsh-better-sidebar-sanmu@0.11.0')
   expect(output).toContain('[dry-run]')
   expect(output).not.toContain('False False')
 }
@@ -108,7 +118,7 @@ describe('PowerShell installer entry points', { timeout: 30_000 }, () => {
 
     expect(versionedExample).toContain(INSTALLER_URL)
     expect(versionedExample).toContain('.TrimStart([char]0xFEFF)')
-    expect(versionedExample).toContain('-Version 0.10.2 -Restart')
+    expect(versionedExample).toContain('-Version 0.1.1 -Restart')
   })
 
   it.runIf(process.platform === 'win32')('binds parameters when loaded into memory by Windows PowerShell 5.1', () => {
@@ -127,7 +137,7 @@ describe('PowerShell installer entry points', { timeout: 30_000 }, () => {
     const output = `${result.stdout}\n${result.stderr}`
 
     expect(result.status, output).toBe(0)
-    expect(output).toContain('dsh-better-sidebar@0.11.0')
+    expect(output).toContain('dsh-better-sidebar-sanmu@0.11.0')
     expect(output).toContain('[dry-run]')
   })
 
@@ -142,5 +152,39 @@ describe('PowerShell installer entry points', { timeout: 30_000 }, () => {
     expect(result.status, output).toBe(1)
     expect(output).toContain('pnpm >= 10')
     expect(readFileSync(workspacePath, 'utf8')).toBe(fixture.workspace)
+  })
+
+  it.runIf(process.platform === 'win32')('refuses an outdated dsh CLI before touching the profile', () => {
+    // 宿主的安装器会拿「执行安装的 CLI 版本」比对插件 peer 下限，太旧就整批
+    // 拒绝并回滚；脚本必须在改动 profile 之前就给出可操作的提示。
+    const fixture = createFixture('10.34.5', '0.2.0-rc.2')
+    const workspacePath = join(fixture.home, 'profiles', 'web', 'pnpm-workspace.yaml')
+    const result = runPowerShell('powershell.exe', [
+      '-ExecutionPolicy', 'Bypass', '-File', INSTALLER, '-Version', '0.1.1', '-DryRun',
+    ], fixture)
+    const output = `${result.stdout}\n${result.stderr}`
+
+    expect(result.status, output).toBe(1)
+    expect(output).toContain('0.2.1-rc.1')
+    expect(output).toContain('npm i -g @deepseek-ai/dsh@')
+    expect(readFileSync(workspacePath, 'utf8')).toBe(fixture.workspace)
+  })
+
+  it.runIf(process.platform === 'win32')('accepts a CLI at or above the peer floor', () => {
+    const fixture = createFixture('10.34.5', '0.2.1-rc.5')
+    const result = runPowerShell('powershell.exe', [
+      '-ExecutionPolicy', 'Bypass', '-File', INSTALLER, '-Version', '0.1.1', '-DryRun',
+    ], fixture)
+    const output = `${result.stdout}\n${result.stderr}`
+
+    expect(result.status, output).toBe(0)
+    expect(output).toContain('dsh-better-sidebar-sanmu@0.1.1')
+  })
+
+  it.runIf(process.platform === 'win32')('installs the fork package, never the upstream one', () => {
+    // 两个包的 `dsh.bundle.patch` 都会挂载右侧栏；装错包会双挂载或装成上游。
+    const source = readFileSync(INSTALLER, 'utf8')
+    expect(source).toContain("$PKG = 'dsh-better-sidebar-sanmu'")
+    expect(source).not.toMatch(/add dsh-better-sidebar@/)
   })
 })

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
-# dsh-better-sidebar 一键安装脚本（官方 CLI 方式，macOS / Linux / Windows Git Bash）
+# dsh-better-sidebar-sanmu 一键安装脚本（官方 CLI 方式，macOS / Linux / Windows Git Bash）
 #
 # 通过 DSH 官方插件命令安装 npm 包并自动挂载：
-#   dsh plugin --profile web add dsh-better-sidebar@<version>
+#   dsh plugin --profile <profile> add dsh-better-sidebar-sanmu@<version>
 #
 # 包内声明了 dsh.bundle.patch（cordis.patch.yml）：CLI 的 bundle 协调会把它
 # 自动加进 profile 的 dsh.profile.bundles，下次启动即挂载——无需手动写
@@ -24,15 +24,18 @@
 # 环境（均可省略，脚本会自动探测）：
 #   DSH_HOME    默认 ~/.dsh（Windows Git Bash 下回退 $USERPROFILE/.dsh）
 #   REGISTRY    默认 https://registry.npmjs.org（发布源；装依赖仍走 pnpm 配置）
-#   DSH_CMD     默认优先用 PATH 上的 `dsh`，缺省回退 npx -y --package @deepseek-ai/dsh@0.2.1-rc.1
+#   DSH_CMD     默认优先用 PATH 上的 `dsh`，缺省回退 npx -y --package @deepseek-ai/dsh@<见 DSH_NPX_SPEC>
 #
 # 说明：
+# - **安装前会校验 dsh CLI 版本**：低于 DSH_BASELINE 时直接中止并给出升级命令。
+#   宿主的安装器拿「执行安装的那份 CLI 版本」比对插件 peer 下限，太旧就整批拒绝
+#   并回滚，界面上表现为「插件报异常、被停用」。npm 全局那份 CLI 常落后于桌面 App。
 # - pnpm 11 的 minimumReleaseAge 会拒绝发布 <24h 的新版本。脚本会预写
 #   minimumReleaseAgeExclude（幂等），放行本插件，避免"重跑一次才成功"。
 # - 老版本（<0.10.2）用手动挂载行，bundle 通道激活后需移除，否则双挂载
-#   （Node 半挂两次、页面两个侧边栏）。脚本会幂等移除 better-sidebar 挂载行。
-# - 回滚：dsh plugin --profile web remove dsh-better-sidebar，或把 profile 依赖
-#   改回 "dsh-better-sidebar": "link:<路径>" 再 pnpm install。
+#   （Node 半挂两次、页面两个侧边栏）。脚本会幂等移除本插件的挂载行。
+# - 回滚：dsh plugin --profile web remove dsh-better-sidebar-sanmu，或把 profile 依赖
+#   改回 "dsh-better-sidebar-sanmu": "link:<路径>" 再 pnpm install。
 # =============================================================================
 set -euo pipefail
 
@@ -40,7 +43,7 @@ set -euo pipefail
 for arg in "$@"; do
   if [ "$arg" = "-h" ] || [ "$arg" = "--help" ]; then
     cat <<'EOF'
-dsh-better-sidebar 一键安装脚本
+dsh-better-sidebar-sanmu 一键安装脚本
 
 用法：
   bash scripts/install.sh [版本] [--restart] [--dry-run] [--profile <名>]
@@ -58,8 +61,14 @@ done
 
 DSH_HOME="${DSH_HOME:-${HOME:-${USERPROFILE:-}}/.dsh}"
 REGISTRY="${REGISTRY:-https://registry.npmjs.org}"
-PKG="dsh-better-sidebar"
+PKG="dsh-better-sidebar-sanmu"
 DSH_CMD="${DSH_CMD:-dsh}"
+
+# 本插件要求的最低宿主版本：与 package.json 的 engines.dsh 下限、13 条
+# @deepseek-ai/dsh-* peer 下限同源，抬基线时三处一起改。
+DSH_BASELINE="0.2.1-rc.1"
+# npx 兜底拉取的 CLI，与 npm latest 同步；抬基线时同步这一处。
+DSH_NPX_SPEC="0.2.1-rc.5"
 
 RESTART=false
 DRY_RUN=false
@@ -93,19 +102,21 @@ ensure_workspace_settings() {
   WS_RESULT="$(node -e '
 const fs = require("fs");
 const p = process.argv[1];
+const pkg = process.argv[2];
 let t = fs.readFileSync(p, "utf8");
 const before = t;
 // minimumReleaseAgeExclude：放行本插件（版本无关），避免 <24h 新版本被拒
-if (!/^\s*-\s+dsh-better-sidebar\s*$/m.test(t)) {
+const entry = new RegExp("^\\s*-\\s+" + pkg + "\\s*$", "m");
+if (!entry.test(t)) {
   if (/^\s*minimumReleaseAgeExclude:\s*$/m.test(t)) {
-    t = t.replace(/^(\s*minimumReleaseAgeExclude:\s*)$/m, "$1\n  - dsh-better-sidebar");
+    t = t.replace(/^(\s*minimumReleaseAgeExclude:\s*)$/m, "$1\n  - " + pkg);
   } else {
-    t += "\nminimumReleaseAgeExclude:\n  - dsh-better-sidebar\n";
+    t += "\nminimumReleaseAgeExclude:\n  - " + pkg + "\n";
   }
 }
 if (t !== before) fs.writeFileSync(p, t);
 console.log(t === before ? "unchanged" : "updated");
-' "$WS_YML")"
+' "$WS_YML" "$PKG")"
   [ "$WS_RESULT" = "updated" ] \
     && say "已确保 ${WS_YML}：minimumReleaseAgeExclude（${PKG}）" \
     || say "workspace 设置已就绪，跳过"
@@ -140,9 +151,53 @@ dsh_cli() {
   if command -v "$DSH_CMD" >/dev/null 2>&1; then
     printf '%s' "$DSH_CMD"
   elif command -v npx >/dev/null 2>&1; then
-    printf 'npx -y --package @deepseek-ai/dsh@0.2.1-rc.1 dsh'
+    printf 'npx -y --package @deepseek-ai/dsh@%s dsh' "$DSH_NPX_SPEC"
   else
     die "未找到 dsh 或 npx。请先安装 DSH（并确保 Node/npm 可用），或用 DSH_CMD 指定 dsh 路径。"
+  fi
+}
+
+# 版本比较：$1 >= $2 时返回 0，否则 1；任一侧无法解析返回 2。用 node 实现，
+# 避免在 shell 里手写 semver（X.Y.Z[-stage.N]，stage 顺序 alpha < beta < rc < 正式版）。
+version_ge() {
+  node -e '
+const parse = (s) => {
+  const m = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z]+)\.(\d+))?/.exec(String(s).trim().replace(/^v/, ""))
+  if (!m) return null
+  const rank = { alpha: 0, beta: 1, rc: 2 }
+  const stage = m[4] ? (rank[m[4].toLowerCase()] ?? 1) : 9
+  return [Number(m[1]), Number(m[2]), Number(m[3]), stage, m[5] ? Number(m[5]) : 0]
+}
+const a = parse(process.argv[1])
+const b = parse(process.argv[2])
+if (!a || !b) process.exit(2)
+for (let i = 0; i < 5; i++) if (a[i] !== b[i]) process.exit(a[i] > b[i] ? 0 : 1)
+process.exit(0)
+' "$1" "$2"
+}
+
+# CLI 低于基线时直接给出可操作的提示，而不是让宿主抛一段英文 peer 列表 + 回滚。
+# 探测不到（走 npx 兜底、DSH_CMD 是自定义命令、--version 不可用）就放行。
+assert_dsh_cli_version() {
+  local cli="$1"
+  [ "$cli" = "dsh" ] || return 0
+  command -v dsh >/dev/null 2>&1 || return 0
+  local actual
+  actual="$(dsh --version 2>/dev/null | tail -n 1)" || return 0
+  [ -n "$actual" ] || return 0
+  local rc=0
+  version_ge "$actual" "$DSH_BASELINE" || rc=$?
+  if [ "$rc" -eq 2 ]; then
+    warn "无法解析 dsh CLI 版本（输出：${actual}），跳过版本校验。"
+    return 0
+  fi
+  if [ "$rc" -ne 0 ]; then
+    warn "本机 dsh CLI 版本为 ${actual}，低于本插件要求的最低版本 ${DSH_BASELINE}。"
+    warn "宿主的安装器会以「incompatible with dsh …」拒绝安装并回滚，界面上则表现为插件报异常、被停用。"
+    warn "请先升级 CLI 后重试（npm 上当前 latest 为 ${DSH_NPX_SPEC}）："
+    warn "  npm i -g @deepseek-ai/dsh@${DSH_NPX_SPEC}"
+    warn "或改用桌面 App 自带的插件管理器安装（它用的是 App 自己的宿主版本）。"
+    die "dsh CLI 太旧（${actual} < ${DSH_BASELINE}），已在改动 profile 之前中止。"
   fi
 }
 
@@ -154,13 +209,14 @@ command -v node >/dev/null 2>&1 || die "未找到 node（DSH 运行需要 Node.j
 
 SPEC="$(resolve_spec "$VERSION_SPEC")"
 CLI="$(dsh_cli)"
+assert_dsh_cli_version "$CLI"
 say "目标：$CLI plugin --profile $PROFILE_NAME add $PKG@${SPEC}（profile: ${PROFILE_DIR}）"
 
 if [ "$DRY_RUN" = true ]; then
   say "[dry-run] 步骤 1：确保 $WS_YML 含 minimumReleaseAgeExclude（${PKG}）"
   say "[dry-run] 步骤 2：执行 $CLI plugin --profile $PROFILE_NAME add $PKG@${SPEC}（安装 + bundle 自动注册）"
   say "[dry-run] 步骤 3：校验 dsh.profile.bundles 含 $PKG"
-  say "[dry-run] 步骤 4：幂等移除 $PATCH_YML 里旧的 better-sidebar 手动挂载行（避免双挂载）"
+  say "[dry-run] 步骤 4：幂等移除 $PATCH_YML 里旧的 $PKG 手动挂载行（避免双挂载）"
   if [ "$RESTART" = true ]; then say "[dry-run] 步骤 5：pm2 restart dsh-web"; else say "[dry-run] 步骤 5：提示用户手动重启 DSH"; fi
   exit 0
 fi
@@ -170,12 +226,24 @@ ensure_workspace_settings
 
 # 步骤 2：官方 CLI 安装 + bundle 自动注册（含挂载）
 say "执行 $CLI plugin --profile $PROFILE_NAME add $PKG@$SPEC ..."
-if ! $CLI plugin --profile "$PROFILE_NAME" add "$PKG@$SPEC" 2>&1 | tail -n +1; then
+ADD_OUT=""
+if ! ADD_OUT="$($CLI plugin --profile "$PROFILE_NAME" add "$PKG@$SPEC" 2>&1)"; then
+  printf '%s\n' "$ADD_OUT"
+  REJECTED="$(printf '%s' "$ADD_OUT" | sed -n 's/.*incompatible with dsh \([0-9A-Za-z.-]*\).*/\1/p' | head -n 1)"
+  if [ -n "$REJECTED" ]; then
+    # 宿主拒绝安装：拿 CLI 自身版本比对插件 peer 下限失败，整批回滚。
+    warn "安装被宿主拒绝：本插件要求 dsh >= ${DSH_BASELINE}，而执行安装的 CLI 是 ${REJECTED}。"
+    warn "请先升级 CLI（npm 上当前 latest 为 ${DSH_NPX_SPEC}）："
+    warn "  npm i -g @deepseek-ai/dsh@${DSH_NPX_SPEC}"
+    warn "或改用桌面 App 自带的插件管理器安装，然后重跑本脚本。"
+    exit 1
+  fi
   warn "dsh plugin add 失败。已预写 minimumReleaseAgeExclude，仍失败的可能原因："
   warn "  - 网络/登录问题：npm registry 不可达或需要登录。"
   warn "  - 依赖安装冲突：可手动重试 cd $PROFILE_DIR && pnpm install。"
   exit 1
 fi
+printf '%s\n' "$ADD_OUT"
 
 # 校验 bundle 已注册（挂载生效的判据）
 if ! node -e '
@@ -184,7 +252,7 @@ if ! node -e '
   const bundles = p.dsh?.profile?.bundles ?? [];
   process.exit(bundles.includes(process.argv[2]) ? 0 : 1);
 ' "$PROFILE_DIR/package.json" "$PKG"; then
-  warn "dsh-better-sidebar 未出现在 dsh.profile.bundles 中——挂载未注册。"
+  warn "${PKG} 未出现在 dsh.profile.bundles 中——挂载未注册。"
   warn "若上面的 pnpm 输出提示 ignored build scripts，请确认 $WS_YML 的 allowBuilds 后重跑本脚本（0.20.0 起本插件自身不再有构建脚本依赖）。"
   exit 1
 fi
@@ -226,7 +294,7 @@ if (!removed) {
 }
 ' "$PATCH_YML")"
 [ "$MOUNT_RESULT" = "removed" ] \
-  && say "已从 $PATCH_YML 移除旧的 better-sidebar 手动挂载行（bundle 通道接管挂载）" \
+  && say "已从 $PATCH_YML 移除旧的 $PKG 手动挂载行（bundle 通道接管挂载）" \
   || say "无旧手动挂载行，跳过"
 
 say "安装完成：$PKG@$SPEC"
