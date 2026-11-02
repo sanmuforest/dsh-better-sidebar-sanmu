@@ -117,14 +117,18 @@ describe('locales (DSH i18n following)', () => {
     expect(Object.keys(en).sort()).toEqual(Object.keys(zh).sort())
   })
 
-  it('keeps every shipped third-language dictionary key-set-equal to zh', () => {
-    // The third-language dicts live in the lazy locale chunk typed as plain
-    // records (the chunk boundary has no key-set type tie to zh). This test
-    // catches missing/extra keys introduced when a zh key is added without
-    // updating every language — a missing key silently falls back to en.
+  it('keeps every shipped third-language dictionary within the zh key set', () => {
+    // A missing key is tolerated at runtime: the better-locale override store
+    // returns undefined and the zh/en chain answers, so a lagging translation is
+    // a copy gap, never a crash. What must not happen is a key zh does not have —
+    // dead weight no revision of the source text can reach. `ja` is this repo's
+    // documented companion dictionary (AGENTS §5), so it is held to full parity.
+    const zhKeys = Object.keys(zh).sort()
     for (const [lang, dict] of Object.entries(localeDicts)) {
-      expect(Object.keys(dict).sort(), lang).toEqual(Object.keys(zh).sort())
+      const extra = Object.keys(dict).filter(key => !zhKeys.includes(key))
+      expect(extra, lang).toEqual([])
     }
+    expect(Object.keys(localeDicts.ja ?? {}).sort(), 'ja').toEqual(zhKeys)
     expect(Object.keys(localeDicts), 'every shipped third language rides the locale chunk').toContain('ja')
   })
 })

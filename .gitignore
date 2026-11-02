@@ -158,3 +158,5 @@ registry/
 playwright-report/
 test-results/
 
+# Scratch space for one-off scripts (never committed)
+.tmp/

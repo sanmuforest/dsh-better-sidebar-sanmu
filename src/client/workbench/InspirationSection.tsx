@@ -9,11 +9,12 @@
  * in the OS file manager, copy path, rename, delete, upload, new file/folder,
  * "reference in chat" — with zero duplicated menu code.
  */
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Context } from '../../context-types.ts'
 import { api } from '../api.ts'
 import { FileTree } from '../FileTree.tsx'
 import { createOpenInApp } from '../open-in-app.ts'
+import { t } from '../locales.ts'
 import type { BetterSidebarService, TabComponentProps } from '../service.ts'
 import type { UploadItem } from '../upload.ts'
 import css from './workbench.module.css'
@@ -32,10 +33,17 @@ export interface InspirationSectionProps {
   refreshTick: number
 }
 
-function noteName(): string {
-  const now = new Date()
+/**
+ * The name of a new note: `灵感-YYYYMMDD-HHmmss.md`.
+ *
+ * Seconds are part of the stamp because two notes created inside the same
+ * minute used to collide outright — the create call then reported "already
+ * exists" and the reader got nothing.
+ */
+export function noteName(now: Date = new Date()): string {
   const pad = (n: number): string => String(n).padStart(2, '0')
-  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`
+    + `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
   return `灵感-${stamp}.md`
 }
 
@@ -52,6 +60,30 @@ function childOf(root: string, name: string): string {
   return `${base}${separator}${name}`
 }
 
+/** The hygiene file's body: these are personal drafts, not project sources. */
+export const HYGIENE_BODY = '# 由 dsh-better-sidebar-sanmu 创建：灵感笔记属于个人草稿，不进入 Git。\n*\n'
+
+/**
+ * Write `.dsh-whiteboard/.gitignore` once per directory, so notes never show up
+ * as untracked changes in the Git root. An existing file is left untouched (the
+ * reader may have edited it), and a failure is ignored: a read-only workspace
+ * still gets working notes, just with the Git noise.
+ */
+async function ensureHygiene(scope: TabComponentProps['scope'], dir: string): Promise<void> {
+  const path = childOf(dir, '.gitignore')
+  try {
+    await api.fsRead(scope, path)
+    return
+  } catch {
+    // Missing (the expected case) or unreadable: try to create it.
+  }
+  try {
+    await api.fsWrite(scope, path, HYGIENE_BODY, null)
+  } catch {
+    // Read-only workspace or a race with another writer: not worth a banner.
+  }
+}
+
 export function InspirationSection(props: InspirationSectionProps): ReactNode {
   const { ctx, scope, visible, cwd, onOpenFile, onReferenceFile, refreshTick } = props
   const dir = cwd === undefined ? undefined : childOf(cwd, INSPIRATION_DIR_NAME)
@@ -64,6 +96,8 @@ export function InspirationSection(props: InspirationSectionProps): ReactNode {
   const [rootEmpty, setRootEmpty] = useState(false)
   const service = ctx.get('betterSidebar') as BetterSidebarService | undefined
   const openInApp = useMemo(() => createOpenInApp(ctx), [ctx])
+  /** Directory whose hygiene file this mount already handled (one probe per dir). */
+  const hygieneDir = useRef<string | null>(null)
 
   // The folder must exist before the tree lists it: create-on-demand, then ask
   // whether it has rows so the empty state can explain what this root is for.
@@ -75,6 +109,10 @@ export function InspirationSection(props: InspirationSectionProps): ReactNode {
         await api.fsMkdir(scope, cwd, INSPIRATION_DIR_NAME)
       } catch {
         // Already there — the only expected failure.
+      }
+      if (hygieneDir.current !== dir) {
+        hygieneDir.current = dir
+        void ensureHygiene(scope, dir)
       }
       try {
         const listing = await api.fsTree(scope, dir, [], controller.signal)
@@ -138,22 +176,22 @@ export function InspirationSection(props: InspirationSectionProps): ReactNode {
         <button
           type="button"
           className={css.toolButton}
-          title="新建灵感"
+          title={t('wbNewNoteTitle')}
           onClick={() => { setCreating(true); setDraftName('') }}
-        >+ 新建灵感</button>
+        >{t('wbNewNote')}</button>
         <button
           type="button"
           className={css.toolButton}
-          title="刷新"
+          title={t('refresh')}
           onClick={() => { setLocalTick(tick => tick + 1) }}
-        >刷新</button>
+        >{t('refresh')}</button>
       </div>
       {creating ? (
         <div className={css.createRow}>
           <input
             autoFocus
             className={css.createInput}
-            placeholder="灵感名称（可留空自动命名）"
+            placeholder={t('wbNoteNamePlaceholder')}
             value={draftName}
             onChange={event => { setDraftName(event.target.value) }}
             onKeyDown={event => {
@@ -166,12 +204,12 @@ export function InspirationSection(props: InspirationSectionProps): ReactNode {
       {error !== null ? <div className={css.error}>{error}</div> : null}
       {rootEmpty && creating === false ? (
         <div className={css.empty}>
-          还没有灵感。<br />点「+ 新建灵感」创建第一个 .md，文件落在 <code>{INSPIRATION_DIR_NAME}/</code>。
+          {t('wbNotesEmpty', { dir: `${INSPIRATION_DIR_NAME}/` })}
         </div>
       ) : null}
       <div className={css.treeHost}>
         {dir === undefined
-          ? <div className={css.empty}>工作区尚未就绪</div>
+          ? <div className={css.empty}>{t('wbWorkspaceNotReady')}</div>
           : (
               <FileTree
                 sessionId={scope.sessionId}

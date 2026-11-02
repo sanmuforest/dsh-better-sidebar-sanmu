@@ -2,6 +2,21 @@
 
 > 本文档收录 dsh-better-sidebar 的完整发布历史（最新版摘要见 [README](README_ZH.md)；同步发布于 [GitHub Releases](https://github.com/omdsh-dev/DSH-better-sidebar/releases)）。
 
+### 未发布（workbench：i18n / 落盘 / 崩溃边界）
+
+- 🌏 **工作台接入 i18n**：此前 workbench 里全是中文字面量，非中文用户看到英文页签名 + 中文正文。43 条 `wb*` 词条进入 `betterSidebar` 词典（zh 为准，en 同步、ja 保持全量对等），组件改用 `t()`。
+  - 机制调整：语言 chunk 的编译期键集守卫从 `Record<CopyKey, string>` 放宽为 `Partial<Record<CopyKey, string>>` —— zh 没有的键仍然编译报错，但允许某语言暂时缺键并在运行时回退 en（better-locale 的 override store 本来就是这么做的）。否则每条新 UI 文案都会强制把 17 份机器翻译补齐才能发版；`tests/locales.spec.ts` 改为「任何词典不得有 zh 之外的键 + ja 必须全量对等」。
+- ⚡ **拖拽分隔条不再每帧写 localStorage**：一次拖拽会触发上百次同步序列化写。现在按 `PERSIST_DEBOUNCE_MS`（200 ms）合并，卸载时补写一次，快速切页签/会话也不会丢最后一次改动。
+- 🛡 **崩溃边界覆盖到每个栏位与内容区**：此前只有 Git 与任务两栏有 `RenderBoundary`，文件树 / 灵感树 / 编辑器抛错会把整个工作台白屏。现在 `Section` 给每个根各包一层（出错只在该栏显示重试条），内容区单独一层。
+
+### 未发布（workbench：缺陷修复）
+
+- 🐞 **Git 栏的视图选择不再因折叠丢失**：`ChangesTab` 通过 `service.updateTab('workbench:git', { meta })` 记住 lens / 底部签 / 面板高度，而这个合成 id 既不在 sidebar store 也不在原生承载面（`updateTab` 对未知 id 是文档化的 no-op），于是每次折叠重挂都回默认。现在「Git」栏给自己那页套一个只拦截该 id 的 `ctx` 视图，把 meta 补丁记在本地并回填成 `tab.meta`，其余调用原样转发。
+- 🐞 **同一分钟连建两篇灵感不再撞名**：自动命名从 `灵感-YYYYMMDD-HHmm.md` 改为 `灵感-YYYYMMDD-HHmmss.md`（秒级），旧行为会直接报「已存在」且什么也不创建。
+- 🧹 **灵感目录不再污染 Git 变更**：首次进入时若 `.dsh-whiteboard/.gitignore` 不存在就写入一条（内容是 `*`），已有文件保持不动、只读工作区失败也不打扰用户。笔记仍是普通 `.md`，AI 工具照常读写。
+- 🎨 **皮肤契约修正**：左栏底色从 `--dsw-specific-sidebar-fill` 换成通用卡片面 `--dsw-alias-bg-layer-1`。前者会被皮肤系统改成玻璃/透明（那是给 App 自己的左导航列用的），换皮后 rail 会失去底色或与标签色打架。
+- 🧪 **新增 `tests/workbench-state.spec.ts`（10 例）**：持久化文档的默认值/容错/字段校验、灵感命名与 `.gitignore` 内容、Git meta 捕获（拦截与转发两侧）、以及「workbench CSS 不得消费 App chrome token」这条皮肤守卫。此前整个 `workbench/` 目录零覆盖。
+
 ### 未发布（fork：安装链路）
 
 - 🐞 **安装脚本装错了包**：`scripts/install.ps1` 与 `scripts/install.sh` 是从上游整份继承的，`$PKG` 仍写着上游的 `dsh-better-sidebar`——跑本仓库的安装脚本会把**上游包**装进 profile（双挂载或装了另一份代码）。现在两处均改为 `dsh-better-sidebar-sanmu`，`minimumReleaseAgeExclude`、bundle 校验与回滚提示同步换成新包名；`tests/install-powershell.spec.ts` 新增「装的是 fork 包名」用例钉住。

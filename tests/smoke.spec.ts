@@ -1656,7 +1656,7 @@ const invoke = async (route: SidebarWebRoute, method: string, payload: unknown):
 /** The Loader entry id this plugin's row is mounted under in these tests. */
 const ENTRY_ID = 'better-sidebar'
 /** The fiber that row owns; the plugin matches it by identity. */
-const PLUGIN_FIBER = { name: 'dsh-better-sidebar' }
+const PLUGIN_FIBER = { name: 'dsh-better-sidebar-sanmu' }
 
 /**
  * A minimal settings FORMS seam: `describe`/`update`/`configure` over one
@@ -1726,7 +1726,7 @@ const mountWithSettings = (settings?: unknown, home?: string): SidebarWebRoute =
     // The plugin discovers its own settings entry id from the loader, so a
     // fake without these entries has NO settings face at all.
     loader: {
-      entries: () => [{ options: { id: ENTRY_ID, name: 'dsh-better-sidebar' }, fiber: PLUGIN_FIBER }],
+      entries: () => [{ options: { id: ENTRY_ID, name: 'dsh-better-sidebar-sanmu' }, fiber: PLUGIN_FIBER }],
           // The real loader settles before a form is addressable; the fake
           // resolves immediately so the import runs on the same tick.
           await: () => Promise.resolve(),
@@ -1962,7 +1962,7 @@ describe('agent sidebar-open tool gating', () => {
       get: () => undefined,
       fiber: PLUGIN_FIBER,
       loader: {
-        entries: () => [{ options: { id: ENTRY_ID, name: 'dsh-better-sidebar' }, fiber: PLUGIN_FIBER }],
+        entries: () => [{ options: { id: ENTRY_ID, name: 'dsh-better-sidebar-sanmu' }, fiber: PLUGIN_FIBER }],
           // The real loader settles before a form is addressable; the fake
           // resolves immediately so the import runs on the same tick.
           await: () => Promise.resolve(),

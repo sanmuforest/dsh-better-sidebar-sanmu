@@ -16,6 +16,7 @@ import type { Context } from '../../context-types.ts'
 import { api } from '../api.ts'
 import { FileTree } from '../FileTree.tsx'
 import { createOpenInApp } from '../open-in-app.ts'
+import { t } from '../locales.ts'
 import type { BetterSidebarService, TabComponentProps } from '../service.ts'
 import type { UploadItem } from '../upload.ts'
 import css from './workbench.module.css'
@@ -113,26 +114,26 @@ export function FilesSection(props: FilesSectionProps): ReactNode {
         <button
           type="button"
           className={css.toolButton}
-          title="新建文件"
+          title={t('wbNewFile')}
           onClick={() => { setCreating('file'); setName('') }}
-        >+ 文件</button>
+        >{t('wbNewFileShort')}</button>
         <button
           type="button"
           className={css.toolButton}
-          title="新建文件夹"
+          title={t('wbNewFolder')}
           onClick={() => { setCreating('dir'); setName('') }}
-        >+ 文件夹</button>
+        >{t('wbNewFolderShort')}</button>
         {creating !== null ? (
           <button type="button" className={css.toolButton} onClick={() => { setCreating(null); setName('') }}>
-            取消
+            {t('cancel')}
           </button>
         ) : null}
       </div>
       <div className={css.targetRow} title={createIn ?? ''}>
-        <span className={css.targetLabel}>新建到：</span>
+        <span className={css.targetLabel}>{t('wbCreateInto')}</span>
         <span className={css.targetPath}>{targetName(createIn, cwd)}</span>
         {targetDir !== undefined && targetDir !== cwd ? (
-          <button type="button" className={css.linkButton} onClick={onResetTarget}>回到根目录</button>
+          <button type="button" className={css.linkButton} onClick={onResetTarget}>{t('wbBackToRoot')}</button>
         ) : null}
       </div>
       {creating !== null ? (
@@ -140,7 +141,7 @@ export function FilesSection(props: FilesSectionProps): ReactNode {
           <input
             autoFocus
             className={css.createInput}
-            placeholder={creating === 'dir' ? '文件夹名' : '文件名.md'}
+            placeholder={creating === 'dir' ? t('wbFolderName') : t('wbFileName')}
             value={name}
             onChange={event => { setName(event.target.value) }}
             onKeyDown={event => {
@@ -154,12 +155,12 @@ export function FilesSection(props: FilesSectionProps): ReactNode {
       {error !== null ? <div className={css.error}>{error}</div> : null}
       {rootEmpty && cwd !== undefined && creating === null ? (
         <div className={css.empty}>
-          工作区还是空的。<br />用上方「+ 文件」新建第一个文件。
+          {t('wbWorkspaceEmpty')}
         </div>
       ) : null}
       <div className={css.treeHost}>
         {cwd === undefined
-          ? <div className={css.empty}>工作区尚未就绪</div>
+          ? <div className={css.empty}>{t('wbWorkspaceNotReady')}</div>
           : (
               <FileTree
                 sessionId={scope.sessionId}
@@ -188,8 +189,8 @@ export function FilesSection(props: FilesSectionProps): ReactNode {
 
 /** Human label for the create target: root, a relative sub-path, or the raw path. */
 function targetName(dir: string | undefined, root: string | undefined): string {
-  if (dir === undefined) return '（工作区未就绪）'
-  if (root === undefined || dir === root) return '工作区根目录'
+  if (dir === undefined) return t('wbWorkspaceNotReadyShort')
+  if (root === undefined || dir === root) return t('wbWorkspaceRoot')
   const base = root.replace(/[\\/]+$/, '')
   if (dir.startsWith(base)) {
     const relative = dir.slice(base.length).replace(/^[\\/]+/, '')

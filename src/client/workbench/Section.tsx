@@ -6,6 +6,7 @@
  * panels poll, and an unfolded root must not keep polling out of sight.
  */
 import type { ReactNode } from 'react'
+import { RenderBoundary } from '../RenderBoundary.tsx'
 import css from './workbench.module.css'
 
 export interface SectionProps {
@@ -36,7 +37,17 @@ export function Section(props: SectionProps): ReactNode {
         </button>
         {open && actions !== undefined ? <div className={css.sectionActions}>{actions}</div> : null}
       </div>
-      {open ? <div className={css.sectionBody}>{children}</div> : null}
+      {open
+        ? (
+            <div className={css.sectionBody}>
+              {/* One boundary per root: a crash inside the tree, the Git page or
+                  the task board shows a retry strip in ITS OWN section instead of
+                  blanking the whole workbench (the shared tab body has a boundary
+                  too, but that one loses the other three rails). */}
+              <RenderBoundary className={css.panelBoundary}>{children}</RenderBoundary>
+            </div>
+          )
+        : null}
     </section>
   )
 }

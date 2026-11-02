@@ -22,9 +22,11 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { VscChecklist, VscFiles, VscLightbulb, VscSourceControl } from 'react-icons/vsc'
 import type { TabComponentProps, EditorToolbarControls, EditorToolbarState } from '../service.ts'
+import { t } from '../locales.ts'
 import { baseName } from '../FileTree.tsx'
 import { useSessionRoot } from '../use-session-root.ts'
 import { referenceInChat } from '../reference-in-chat.ts'
+import { RenderBoundary } from '../RenderBoundary.tsx'
 import { Section } from './Section.tsx'
 import { FilesSection } from './FilesSection.tsx'
 import { InspirationSection } from './InspirationSection.tsx'
@@ -33,6 +35,7 @@ import { GitSection } from './GitSection.tsx'
 import { EditorPane } from './EditorPane.tsx'
 import {
   LEFT_MIN,
+  PERSIST_DEBOUNCE_MS,
   RIGHT_MIN,
   loadWorkbench,
   saveWorkbench,
@@ -74,9 +77,28 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
   /** Directory the rail's "+ 文件 / + 文件夹" buttons create into. */
   const [createDir, setCreateDir] = useState<string | undefined>(undefined)
 
-  // Persist on every change: the document is tiny (a few hundred bytes) and a
-  // reload must restore exactly what the reader left behind.
-  useEffect(() => { saveWorkbench(scope.sessionId, ui) }, [scope.sessionId, ui])
+  // Persist the layout document, debounced. Dragging the splitter changes `ui`
+  // on every pointer move, so a synchronous localStorage write per frame made
+  // long drags janky; a fold or a file switch still lands within one tick.
+  // The pending write is flushed on unmount so a fast tab/session switch cannot
+  // lose the last change.
+  const pendingWrite = useRef<{ sessionId: string | undefined; value: WorkbenchPersisted } | null>(null)
+  useEffect(() => {
+    pendingWrite.current = { sessionId: scope.sessionId, value: ui }
+    const timer = window.setTimeout(() => {
+      const pending = pendingWrite.current
+      if (pending === null) return
+      pendingWrite.current = null
+      saveWorkbench(pending.sessionId, pending.value)
+    }, PERSIST_DEBOUNCE_MS)
+    return () => { window.clearTimeout(timer) }
+  }, [scope.sessionId, ui])
+  useEffect(() => () => {
+    const pending = pendingWrite.current
+    if (pending === null) return
+    pendingWrite.current = null
+    saveWorkbench(pending.sessionId, pending.value)
+  }, [])
 
   const rootRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
@@ -183,7 +205,7 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
   /** "保存": save through the editor, then continue once it reports clean. */
   const savePending = useCallback(() => {
     if (controlsRef.current === null) {
-      setSaveError('当前文件不支持保存（编辑器未就绪）。')
+      setSaveError(t('wbNoSave'))
       return
     }
     saveThenActRef.current = true
@@ -197,7 +219,7 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
     if (!saveThenActRef.current || pending === undefined || toolbar === null) return
     if (toolbar.saveState === 'failed') {
       saveThenActRef.current = false
-      setSaveError('保存失败：文件可能已在磁盘上被修改，请先处理冲突。')
+      setSaveError(t('wbDirtyConflict'))
       return
     }
     if (toolbar.dirty === false) {
@@ -284,16 +306,16 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
   const gitOpen = isOpen('git')
 
   const saveLabel = toolbar?.saveState === 'saving'
-    ? '保存中…'
+    ? t('wbSaving')
     : toolbar?.saveState === 'failed'
-      ? '保存失败'
-      : toolbar?.dirty === true ? '保存' : '已保存'
+      ? t('wbSaveFailed')
+      : toolbar?.dirty === true ? t('save') : t('wbSaved')
 
   return (
     <div className={css.workbench} ref={rootRef}>
       <div className={css.left} style={{ width: `${ui.leftWidth}px` }}>
         <Section
-          title="文件"
+          title={t('wbSectionFiles')}
           icon={<VscFiles size={ICON_SIZE} />}
           open={filesOpen}
           onToggle={() => { toggleSection('files') }}
@@ -315,7 +337,7 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
         </Section>
 
         <Section
-          title="灵感"
+          title={t('wbSectionInspiration')}
           icon={<VscLightbulb size={ICON_SIZE} />}
           open={inspirationOpen}
           onToggle={() => { toggleSection('inspiration') }}
@@ -332,7 +354,7 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
         </Section>
 
         <Section
-          title="任务"
+          title={t('wbSectionTasks')}
           icon={<VscChecklist size={ICON_SIZE} />}
           open={tasksOpen}
           onToggle={() => { toggleSection('tasks') }}
@@ -341,7 +363,7 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
         </Section>
 
         <Section
-          title="Git"
+          title={t('wbSectionGit')}
           icon={<VscSourceControl size={ICON_SIZE} />}
           open={gitOpen}
           onToggle={() => { toggleSection('git') }}
@@ -367,17 +389,17 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
       <div className={css.right}>
         <div className={css.editorHead}>
           <span className={css.fileName} title={ui.openPath ?? ''}>
-            {ui.openPath === undefined ? '工作台' : baseName(ui.openPath)}
+            {ui.openPath === undefined ? t('wbTitle') : baseName(ui.openPath)}
             {toolbar?.dirty === true
-              ? <span className={css.unsavedMark} title="有未保存的修改" aria-label="有未保存的修改">*</span>
+              ? <span className={css.unsavedMark} title={t('wbUnsavedMark')} aria-label={t('wbUnsavedMark')}>*</span>
               : null}
           </span>
           <span className={css.headSpacer} />
           {toolbar?.modes === true && toolbar.mode === 'edit'
-            ? <button type="button" className={css.headButton} onClick={() => { controlsRef.current?.setMode('preview') }}>预览</button>
+            ? <button type="button" className={css.headButton} onClick={() => { controlsRef.current?.setMode('preview') }}>{t('preview')}</button>
             : null}
           {toolbar?.modes === true && toolbar.mode === 'preview'
-            ? <button type="button" className={css.headButton} onClick={() => { controlsRef.current?.setMode('edit') }}>编辑</button>
+            ? <button type="button" className={css.headButton} onClick={() => { controlsRef.current?.setMode('edit') }}>{t('edit')}</button>
             : null}
           {toolbar?.editable === true
             ? (
@@ -386,50 +408,53 @@ export function WorkbenchTab(props: TabComponentProps): ReactNode {
                   className={css.headButton}
                   disabled={toolbar.saveState === 'saving'}
                   title={toolbar.saveState === 'failed'
-                    ? '保存失败：文件可能已在磁盘上被修改，请处理冲突后重试'
-                    : '保存 (Ctrl/Cmd+S)'}
+                    ? t('wbSaveConflictHint')
+                    : t('wbSaveHint')}
                   onClick={() => { controlsRef.current?.save() }}
                 >{saveLabel}</button>
               )
             : null}
           {ui.openPath !== undefined
-            ? <button type="button" className={css.iconButton} title="关闭文件" onClick={requestClose}>×</button>
+            ? <button type="button" className={css.iconButton} title={t('wbCloseFile')} onClick={requestClose}>×</button>
             : null}
         </div>
         {ui.openPath === undefined
+          // Its own boundary: a crashing viewer must not take the four rails down.
           ? (
               <div className={css.rightBody}>
                 <div className={css.rightEmpty}>
-                  内容区<br />从左侧选择文件开始编辑
+                  {t('wbEmptyTitle')}<br />{t('wbEmptyHint')}
                 </div>
               </div>
             )
           : (
-              <EditorPane
-                key={ui.openPath}
-                ctx={ctx}
-                store={store}
-                scope={scope}
-                visible={visible}
-                path={ui.openPath}
-                onToolbarState={onToolbarState}
-                onToolbarControls={onToolbarControls}
-              />
+              <RenderBoundary className={css.panelBoundary}>
+                <EditorPane
+                  key={ui.openPath}
+                  ctx={ctx}
+                  store={store}
+                  scope={scope}
+                  visible={visible}
+                  path={ui.openPath}
+                  onToolbarState={onToolbarState}
+                  onToolbarControls={onToolbarControls}
+                />
+              </RenderBoundary>
             )}
       </div>
 
       {pending !== undefined ? (
         <div className={css.modalOverlay}>
-          <div className={css.modal} role="dialog" aria-modal="true" aria-label="有未保存的修改">
-            <div className={css.modalTitle}>有未保存的修改</div>
+          <div className={css.modal} role="dialog" aria-modal="true" aria-label={t('wbDirtyTitle')}>
+            <div className={css.modalTitle}>{t('wbDirtyTitle')}</div>
             <div className={css.modalText}>
-              「{ui.openPath === undefined ? '' : baseName(ui.openPath)}」还有未保存的修改。
+              {t('wbDirtyText', { name: ui.openPath === undefined ? '' : baseName(ui.openPath) })}
             </div>
             {saveError !== null ? <div className={css.error}>{saveError}</div> : null}
             <div className={css.modalActions}>
-              <button type="button" className={css.modalButton} onClick={cancelPending}>取消</button>
-              <button type="button" className={css.modalButton} onClick={discardPending}>不保存</button>
-              <button type="button" className={css.modalPrimary} onClick={savePending}>保存</button>
+              <button type="button" className={css.modalButton} onClick={cancelPending}>{t('cancel')}</button>
+              <button type="button" className={css.modalButton} onClick={discardPending}>{t('wbDiscard')}</button>
+              <button type="button" className={css.modalPrimary} onClick={savePending}>{t('save')}</button>
             </div>
           </div>
         </div>

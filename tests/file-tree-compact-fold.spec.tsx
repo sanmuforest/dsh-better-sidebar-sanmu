@@ -151,16 +151,28 @@ async function flush(): Promise<void> {
   })
 }
 
-/** The directory rows' rendered labels, in document order. */
+/**
+ * A row's label: its NAME span only.
+ *
+ * The row's `textContent` also carries chrome the fork added around the name —
+ * a `>` chevron and the "reference in chat" button — so reading the whole row
+ * would make every label start with the chevron and end with the button text.
+ * `aria-hidden` keeps that chrome out of the accessibility tree; the name span
+ * is the label both the reader and the row menu address.
+ */
+function labelOf(row: HTMLElement): string {
+  return row.querySelector<HTMLElement>('[class*="explorerName"]')?.textContent ?? row.textContent ?? ''
+}
+
+/** The rows' rendered labels, in document order. */
 function rowLabels(container: HTMLElement): string[] {
-  return [...container.querySelectorAll<HTMLElement>('[role="button"]')]
-    .map(row => row.textContent ?? '')
+  return [...container.querySelectorAll<HTMLElement>('[role="button"]')].map(labelOf)
 }
 
 /** The row whose label is exactly `label`. */
 function rowByLabel(container: HTMLElement, label: string): HTMLElement {
   const row = [...container.querySelectorAll<HTMLElement>('[role="button"]')]
-    .find(candidate => (candidate.textContent ?? '').startsWith(label))
+    .find(candidate => labelOf(candidate).startsWith(label))
   if (row === undefined) throw new Error(`no row "${label}" in ${JSON.stringify(rowLabels(container))}`)
   return row
 }

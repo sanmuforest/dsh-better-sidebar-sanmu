@@ -20,7 +20,7 @@ if (g.localStorage === undefined) {
   }
 }
 
-import { createBetterSidebarService, matchUrlTarget, SIDEBAR_FEATURES, SIDEBAR_SERVICE_VERSION } from '../src/client/service.ts'
+import { createBetterSidebarService, matchUrlTarget, SIDEBAR_FEATURES, SIDEBAR_SERVICE_VERSION, UPSTREAM_API_BASELINE } from '../src/client/service.ts'
 import { createSidebarStore, allLeaves, makeDefaultState, openDiffTab, openTabInBottomPane, sanitizeState } from '../src/client/state.ts'
 
 describe('BetterSidebar service', () => {
@@ -594,10 +594,16 @@ describe('service.openTab auto-expand for content opens', () => {
 })
 
 describe('version and feature detection (v0.12.0)', () => {
-  it('reports the plugin version in lockstep with package.json', () => {
+  it('reports the upstream API baseline, not the fork package version', () => {
+    // Consumers gate `version >= 0.2x` against upstream releases; the fork's own
+    // 0.1.x package number would read as far older and switch features off.
+    // Both numbers are asserted independently: the service reports the API
+    // generation, `package.json` carries the fork's own release number.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pkg = JSON.parse(require('node:fs').readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
-    expect(SIDEBAR_SERVICE_VERSION).toBe(pkg.version)
+    expect(SIDEBAR_SERVICE_VERSION).toBe(UPSTREAM_API_BASELINE)
+    expect(UPSTREAM_API_BASELINE).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(pkg.version).toMatch(/^\d+\.\d+\.\d+/)
     expect(createBetterSidebarService(createSidebarStore()).version).toBe(SIDEBAR_SERVICE_VERSION)
   })
 
