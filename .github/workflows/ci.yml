@@ -1,12 +1,13 @@
 name: ci
 
-# Just the gates that matter for this fork: the package must type-check and
-# bundle. The upstream test/e2e lanes are not wired in (they need Playwright and
-# a live DSH host); run them locally when touching the reused upstream modules.
+# The gates this fork relies on: the package must type-check, bundle, and keep
+# the inherited vitest suite green (that suite is the regression net for every
+# reused upstream module). The upstream e2e lanes need Playwright plus a live
+# DSH host and stay local: `pnpm build && pnpm pack && pnpm test:mount`.
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
 
 jobs:
@@ -22,3 +23,5 @@ jobs:
       - run: npm ci --ignore-scripts --legacy-peer-deps
       - run: node node_modules/typescript/bin/tsc -p tsconfig.build.json
       - run: node node_modules/tsdown/dist/run.mjs
+      # After the bundle steps: `tests/chunk-artifact.spec.ts` inspects lib/.
+      - run: npm test

@@ -1,6 +1,13 @@
 /**
- * Host baseline contract: package DSH peers/dev pins, standalone installers,
- * e2e fallback/version check and CI must move together, without floating CLI tags.
+ * Host baseline contract for the fork: DSH peers/dev pins, the standalone
+ * installers' CLI gate and npx fallback, the e2e fallback and CI must move
+ * together, without floating CLI tags.
+ *
+ * Fork notes: `package.json` here is `dsh-better-sidebar-sanmu`, so the identity
+ * assertions inherited from upstream no longer apply; what still matters is that
+ * the *host* baseline (`0.2.1-rc.1`) is declared identically everywhere, and that
+ * CI runs the gates this fork actually relies on (typecheck + bundle + the
+ * vitest suite).
  */
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
@@ -31,11 +38,24 @@ describe('DSH host baseline', () => {
     }
   })
 
-  it('pins both standalone installer npx fallbacks', () => {
-    expect(bash).toContain(`printf 'npx -y --package @deepseek-ai/dsh@${baseline} dsh'`)
-    expect(powershell).toContain(`$cliArgs = @('-y', '--package', '@deepseek-ai/dsh@${baseline}', 'dsh', 'plugin'`)
+  it('gates both installers on the same CLI floor as the package engines', () => {
+    // The floor moves with the peers: the host compares the *installing* CLI
+    // against the plugin's peer range, so an older CLI rejects the install.
+    const floor = /^>=([^ <]+)/.exec(pkg.engines.dsh)?.[1]
+    expect(floor).toBe(baseline)
+    expect(bash).toContain(`DSH_BASELINE="${floor}"`)
+    expect(powershell).toContain(`$DSH_BASELINE = '${floor}'`)
+  })
+
+  it('keeps both installer npx fallbacks on one named constant', () => {
+    // A hard-coded version at the call site is what let an older CLI slip
+    // through before; the fallback is one constant per script.
+    expect(bash).toMatch(/^DSH_NPX_SPEC="\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?"$/m)
+    expect(bash).toContain('printf \'npx -y --package @deepseek-ai/dsh@%s dsh\' "$DSH_NPX_SPEC"')
+    expect(powershell).toMatch(/^\$DSH_NPX_SPEC = '\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?'$/m)
+    expect(powershell).toContain('"@deepseek-ai/dsh@$DSH_NPX_SPEC"')
     for (const source of [bash, powershell]) {
-      expect(source).not.toMatch(/^\s*(?:source|\.)\s+[^\r\n]*e2e-common/m)
+      expect(source).not.toMatch(/package @deepseek-ai\/dsh@\d/)
     }
   })
 
@@ -44,10 +64,15 @@ describe('DSH host baseline', () => {
     expect(e2e).toContain('expected="${DSH_EXPECT_VERSION:-' + baseline + '}"')
   })
 
-  it.each(['\n', '\r\n'])('pins CI with its heap budget and peer resolution intact (%j)', (eol) => {
+  it.each(['\n', '\r\n'])('runs typecheck, bundle and the vitest suite in CI (%j)', (eol) => {
     // Git may check out YAML as CRLF on Windows; the contract is the same.
     const source = ci.replace(/\r?\n/g, eol)
-    expect(source).toContain(`NODE_OPTIONS: --max-old-space-size=4096${eol}        run: npm install -g @deepseek-ai/dsh@${baseline}${eol}`)
-    expect(source).not.toMatch(/^\s*run:.*--legacy-peer-deps/m)
+    expect(source).toContain('NODE_OPTIONS: --max-old-space-size=4096')
+    expect(source).toContain('node node_modules/typescript/bin/tsc -p tsconfig.build.json')
+    expect(source).toContain('node node_modules/tsdown/dist/run.mjs')
+    // The inherited suite is the regression net for every reused upstream
+    // module; a build-only lane let fork-wide breakage land unnoticed.
+    expect(source).toContain('run: npm test')
+    expect(source).toMatch(/branches: \[main, dev\]/)
   })
 })

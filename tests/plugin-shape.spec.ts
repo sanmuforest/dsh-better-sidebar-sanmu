@@ -8,7 +8,7 @@ import * as sidebar from '../src/index.ts'
  * the official plugin repos ship (dsh-external/turtle-ui,
  * packages/ui/jsonrpc).
  */
-describe('dsh-better-sidebar plugin export shape', () => {
+describe('dsh-better-sidebar-sanmu plugin export shape', () => {
   it('has the namespace-plugin export shape (no stray default) so the Loader keeps name/inject/Config/apply', () => {
     expect('default' in sidebar).toBe(false)
     expect(typeof sidebar.apply).toBe('function')
@@ -16,7 +16,10 @@ describe('dsh-better-sidebar plugin export shape', () => {
     const loader = Object.create(Loader.prototype) as Loader
     const unwrapped = loader.unwrapExports(sidebar) as Record<string, unknown>
     expect(unwrapped).toBe(sidebar)
-    expect(unwrapped.name).toBe('dsh-better-sidebar')
+    // The loader row name. `ownEntryId()` matches this against the package name
+    // to find this row's settings form, and the double-mount guard keys off it,
+    // so the fork must report its own name rather than the upstream one.
+    expect(unwrapped.name).toBe('dsh-better-sidebar-sanmu')
     expect(unwrapped.inject).toEqual(['webServer', 'sessions', 'connection', 'tools'])
     expect(unwrapped.Config).toBeDefined()
     expect(typeof unwrapped.apply).toBe('function')
