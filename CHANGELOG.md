@@ -2,6 +2,19 @@
 
 > 本文档收录 dsh-better-sidebar 的完整发布历史（最新版摘要见 [README](README_ZH.md)；同步发布于 [GitHub Releases](https://github.com/omdsh-dev/DSH-better-sidebar/releases)）。
 
+### 0.2.0
+
+首个合并后的发布：安装链路修复 + 工作台打磨 + 灵感书签。
+
+- 🧯 **安装不再把应用写崩**：安装脚本/文档统一改为无 BOM 的 JSON 写入（`Set-Content -Encoding UTF8` 在 Windows PowerShell 下会写 BOM，`readProfileManifest` 的 `JSON.parse` 直接抛错 → 启动即崩）；同时安装前探测全局 `dsh --version`，低于 peer 下限就提示升级而不是让旧 CLI 把整批安装判为不兼容后回滚。
+- 🌏 **工作台接入 i18n**：43 条 `wb*` 词条进入 `betterSidebar` 词典（zh 为准，en 同步、ja 全量对等），组件改用 `t()`；本次新增书签相关 9 条词条（三语）。
+- ⚡ **拖拽分隔条写入去抖**：`PERSIST_DEBOUNCE_MS`（200 ms）合并写入，卸载时补写一次。
+- 🛡 **崩溃边界覆盖每个栏位与内容区**：`Section` 为每个根各包一层 `RenderBoundary`，内容区单独一层，单栏抛错不再白屏整个工作台。
+- 🢔 **Git 栏选择不再丢失**：`ChangesTab` 的 lens / 底部签 / 面板高度改由捕获式 `ctx` 回填 `tab.meta`。
+- 🕒 **灵感命名精确到秒**，同一分钟连建两篇不再撞名；首次进入自动写 `.dsh-whiteboard/.gitignore`（内容 `*`），笔记不再污染 Git 变更。
+- 🎨 **皮肤契约修正**：左栏底色从 `--dsw-specific-sidebar-fill` 换成通用卡片面 `--dsw-alias-bg-layer-1`。
+- 🔖 **灵感根下新增「浏览器书签」子列表**：新建/编辑/删除（名称 + 地址，只收 http/https），点击直接在**新的**宿主浏览器页签中打开该网址。
+
 ### 未发布（workbench：i18n / 落盘 / 崩溃边界）
 
 - 🌏 **工作台接入 i18n**：此前 workbench 里全是中文字面量，非中文用户看到英文页签名 + 中文正文。43 条 `wb*` 词条进入 `betterSidebar` 词典（zh 为准，en 同步、ja 保持全量对等），组件改用 `t()`。
