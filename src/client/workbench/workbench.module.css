@@ -652,3 +652,145 @@
 .splitterActive {
   background: color-mix(in srgb, var(--dsw-alias-brand-primary) 10%, transparent);
 }
+
+/* ── Browser bookmarks as a child list of the Inspiration root ───────── */
+.subSection {
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  margin: 2px 0 4px;
+  min-width: 0;
+}
+
+.subHead {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 6px 0 2px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.subToggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.subToggle:hover {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.subChevron {
+  display: inline-block;
+  width: 9px;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  transition: transform 120ms ease;
+}
+
+.subChevronOpen {
+  transform: rotate(90deg);
+}
+
+.subTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subCount {
+  flex: 0 0 auto;
+  min-width: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 10px;
+  text-align: center;
+}
+
+.subAdd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.subAdd:hover {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.bookmarkList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 6px 6px;
+  min-width: 0;
+}
+
+.bookmarkRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bookmarkRow:hover {
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.bookmarkDot {
+  flex: 0 0 auto;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dsw-alias-brand-primary);
+  opacity: 0.85;
+}
+
+.bookmarkRowName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookmarkField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary);
+}

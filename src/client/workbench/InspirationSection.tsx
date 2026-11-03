@@ -10,6 +10,7 @@
  * "reference in chat" — with zero duplicated menu code.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { VscAdd, VscBookmark, VscTrash } from 'react-icons/vsc'
 import type { Context } from '../../context-types.ts'
 import { api } from '../api.ts'
 import { FileTree } from '../FileTree.tsx'
@@ -17,6 +18,14 @@ import { createOpenInApp } from '../open-in-app.ts'
 import { t } from '../locales.ts'
 import type { BetterSidebarService, TabComponentProps } from '../service.ts'
 import type { UploadItem } from '../upload.ts'
+import {
+  createBookmark,
+  loadBookmarks,
+  normalizeBookmarkUrl,
+  saveBookmarks,
+  titleForUrl,
+  type Bookmark,
+} from './bookmarks.ts'
 import css from './workbench.module.css'
 
 /** The fixed directory, relative to the session workspace root. */
@@ -98,6 +107,67 @@ export function InspirationSection(props: InspirationSectionProps): ReactNode {
   const openInApp = useMemo(() => createOpenInApp(ctx), [ctx])
   /** Directory whose hygiene file this mount already handled (one probe per dir). */
   const hygieneDir = useRef<string | null>(null)
+
+  // ── Browser bookmarks: a child list under this root ──────────────────
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => loadBookmarks())
+  const [bookmarksOpen, setBookmarksOpen] = useState(true)
+  const [editing, setEditing] = useState<Bookmark | null>(null)
+  const [draftTitle, setDraftTitle] = useState('')
+  const [draftUrl, setDraftUrl] = useState('')
+  const [bookmarkError, setBookmarkError] = useState<string | null>(null)
+
+  useEffect(() => { saveBookmarks(bookmarks) }, [bookmarks])
+
+  /** Open one bookmark in a NEW host Browser tab, already on that page. */
+  const openBookmark = useCallback((url: string) => {
+    let controller: { openTab(kind: string, options?: { params?: unknown; revealIfOpened?: boolean }): void } | undefined
+    try {
+      controller = ctx.get('sidebarRight') as unknown as typeof controller
+    } catch {
+      controller = undefined
+    }
+    if (controller === undefined) {
+      setBookmarkError(t('wbBookmarkNoHost'))
+      return
+    }
+    try {
+      controller.openTab('browser', { params: { url }, revealIfOpened: false })
+      setBookmarkError(null)
+    } catch (cause) {
+      setBookmarkError(`${t('wbBookmarkOpenFailed')}: ${cause instanceof Error ? cause.message : String(cause)}`)
+    }
+  }, [ctx])
+
+  const beginBookmark = useCallback((bookmark: Bookmark | null) => {
+    setEditing(bookmark ?? { id: '', title: '', url: '' })
+    setDraftTitle(bookmark?.title ?? '')
+    setDraftUrl(bookmark?.url ?? '')
+    setBookmarkError(null)
+  }, [])
+
+  const commitBookmark = useCallback(() => {
+    const normalized = normalizeBookmarkUrl(draftUrl)
+    if (normalized === null) {
+      setBookmarkError(t('wbBookmarkInvalid'))
+      return
+    }
+    const title = draftTitle.trim() === '' ? titleForUrl(normalized) : draftTitle.trim()
+    const current = editing
+    if (current === null) return
+    if (current.id === '') {
+      setBookmarks(items => [createBookmark(title, normalized), ...items])
+    } else {
+      setBookmarks(items => items.map(item => item.id === current.id ? { ...item, title, url: normalized } : item))
+    }
+    setEditing(null)
+    setBookmarkError(null)
+  }, [draftTitle, draftUrl, editing])
+
+  const removeBookmark = useCallback(() => {
+    if (editing === null) return
+    setBookmarks(items => items.filter(item => item.id !== editing.id))
+    setEditing(null)
+  }, [editing])
 
   // The folder must exist before the tree lists it: create-on-demand, then ask
   // whether it has rows so the empty state can explain what this root is for.
@@ -186,6 +256,100 @@ export function InspirationSection(props: InspirationSectionProps): ReactNode {
           onClick={() => { setLocalTick(tick => tick + 1) }}
         >{t('refresh')}</button>
       </div>
+
+      {/* Browser bookmarks: a child list of this root. Clicking one opens a NEW
+          host Browser tab already on that page; right-click edits/deletes. */}
+      <div className={css.subSection}>
+        <div className={css.subHead}>
+          <button
+            type="button"
+            className={css.subToggle}
+            aria-expanded={bookmarksOpen}
+            onClick={() => { setBookmarksOpen(open => !open) }}
+          >
+            <span className={bookmarksOpen ? `${css.subChevron} ${css.subChevronOpen}` : css.subChevron} aria-hidden>&gt;</span>
+            <VscBookmark size={12} />
+            <span className={css.subTitle}>{t('wbBookmarks')}</span>
+            <span className={css.subCount}>{bookmarks.length}</span>
+          </button>
+          <button
+            type="button"
+            className={css.subAdd}
+            title={t('wbBookmarkNew')}
+            onClick={() => { beginBookmark(null) }}
+          >
+            <VscAdd size={13} />
+          </button>
+        </div>
+        {bookmarksOpen ? (
+          <div className={css.bookmarkList}>
+            {bookmarks.length === 0
+              ? <div className={css.empty}>{t('wbBookmarksEmpty')}</div>
+              : bookmarks.map(item => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={css.bookmarkRow}
+                    title={`${item.title}\n${item.url}`}
+                    onClick={() => { openBookmark(item.url) }}
+                    onContextMenu={(event) => { event.preventDefault(); beginBookmark(item) }}
+                  >
+                    <span className={css.bookmarkDot} aria-hidden />
+                    <span className={css.bookmarkRowName}>{item.title}</span>
+                  </button>
+                ))}
+          </div>
+        ) : null}
+        {bookmarkError !== null ? (
+          <div className={css.error}>
+            {bookmarkError}
+            <button type="button" className={css.linkButton} onClick={() => { setBookmarkError(null) }}>{t('dismiss')}</button>
+          </div>
+        ) : null}
+      </div>
+
+      {editing !== null ? (
+        <div className={css.modalOverlay}>
+          <div className={css.modal} role="dialog" aria-modal="true" aria-label={t('wbBookmarkEdit')}>
+            <div className={css.modalTitle}>{editing.id === '' ? t('wbBookmarkNew') : t('wbBookmarkEdit')}</div>
+            <label className={css.bookmarkField}>
+              <span>{t('wbBookmarkName')}</span>
+              <input
+                autoFocus
+                className={css.createInput}
+                value={draftTitle}
+                placeholder={draftUrl === '' ? t('wbBookmarkName') : titleForUrl(draftUrl)}
+                onChange={event => { setDraftTitle(event.target.value) }}
+                onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); commitBookmark() } }}
+              />
+            </label>
+            <label className={css.bookmarkField}>
+              <span>{t('wbBookmarkUrl')}</span>
+              <input
+                className={css.createInput}
+                value={draftUrl}
+                placeholder="https://example.com"
+                onChange={event => { setDraftUrl(event.target.value) }}
+                onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); commitBookmark() } }}
+              />
+            </label>
+            {bookmarkError !== null ? <div className={css.error}>{bookmarkError}</div> : null}
+            <div className={css.modalActions}>
+              {editing.id !== ''
+                ? (
+                    <button type="button" className={css.modalButton} onClick={removeBookmark} title={t('delete')}>
+                      <VscTrash size={13} /> {t('delete')}
+                    </button>
+                  )
+                : null}
+              <span className={css.headSpacer} />
+              <button type="button" className={css.modalButton} onClick={() => { setEditing(null); setBookmarkError(null) }}>{t('cancel')}</button>
+              <button type="button" className={css.modalPrimary} onClick={commitBookmark}>{t('save')}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {creating ? (
         <div className={css.createRow}>
           <input
